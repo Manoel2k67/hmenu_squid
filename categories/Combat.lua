@@ -1,0 +1,52 @@
+return {
+    Id = "Combat",
+    Label = "Combat",
+    Icon = "target",
+    Bookmarked = false,
+    Sections = {
+        {
+            Title = "Murder",
+            Icon = "target",
+            Controls = {
+                { Kind = "Toggle", Id = "murder_kill_aura", Label = "Kill Aura", Description = "Automatically attacks a valid target inside the aura radius.", Default = false },
+                { Kind = "Slider", Id = "murder_aura_radius", Label = "Aura Radius", Min = 4, Max = 25, Default = 12, Step = 1 },
+                { Kind = "Slider", Id = "murder_attack_delay", Label = "Attack Delay", Min = 0.05, Max = 1, Default = 0.15, Step = 0.05 },
+                { Kind = "Dropdown", Id = "murder_target_priority", Label = "Target Priority", Options = { "Nearest", "Sheriff First" }, Default = "Nearest" },
+                { Kind = "Toggle", Id = "murder_auto_equip", Label = "Auto Equip Knife", Description = "Keeps the Knife equipped while you are the Murderer.", Default = false },
+                { Kind = "Button", Id = "murder_equip_knife", Label = "Equip Knife", ButtonText = "Equip" },
+                { Kind = "Button", Id = "murder_kill_nearest", Label = "Kill Nearest", Description = "Blink-stabs the nearest alive target and returns to your position.", ButtonText = "Kill" },
+                { Kind = "Button", Id = "murder_kill_sheriff", Label = "Kill Sheriff", Description = "Targets the Sheriff or current Hero carrying the Gun.", ButtonText = "Kill" },
+                { Kind = "Button", Id = "murder_kill_all", Label = "Kill All", Description = "Sequentially attacks every alive non-Murderer target.", ButtonText = "Kill All" },
+            },
+        },
+        {
+            Title = "Sheriff",
+            Icon = "target",
+            Controls = {
+                { Kind = "Button", Id = "sheriff_shoot_murderer", Label = "Atirar no Murderer", Description = "Equipa a Gun e envia um tiro diretamente para o Murderer detectado.", ButtonText = "Atirar" },
+                { Kind = "Toggle", Id = "sheriff_perfect_shots", Label = "Perfect Shots (experimental)", Description = "Tenta redirecionar tiros manuais; a compatibilidade depende do executor.", Default = false },
+                { Kind = "Toggle", Id = "sheriff_auto_shoot", Label = "Auto Shoot Murderer", Description = "When the Murderer is visible, pulls the Gun from Backpack and fires automatically.", Default = false },
+                { Kind = "Slider", Id = "sheriff_shoot_cooldown", Label = "Auto Shoot Cooldown", Min = 0.4, Max = 2, Default = 1.1, Step = 0.1 },
+                { Kind = "Dropdown", Id = "sheriff_target_part", Label = "Target Part", Options = { "HumanoidRootPart", "Head", "UpperTorso" }, Default = "HumanoidRootPart" },
+                { Kind = "Slider", Id = "sheriff_prediction", Label = "Prediction", Min = 0, Max = 0.35, Default = 0.08, Step = 0.01 },
+                { Kind = "Toggle", Id = "sheriff_ignore_walls", Label = "Ignore Walls", Description = "Off by default: Auto Shoot requires direct line of sight.", Default = false },
+                { Kind = "Toggle", Id = "sheriff_auto_equip", Label = "Auto Equip Gun", Description = "Automatically equips the Gun when it enters your Backpack.", Default = false },
+                { Kind = "Button", Id = "sheriff_equip_gun", Label = "Equip Gun", ButtonText = "Equip" },
+                { Kind = "Toggle", Id = "sheriff_auto_grab", Label = "Auto Grab Dropped Gun", Description = "Attempts to collect GunDrop without moving or changing your CFrame.", Default = false },
+                { Kind = "Button", Id = "sheriff_grab_now", Label = "Grab Dropped Gun Now", Description = "Remote pickup attempt only; your character stays in place.", ButtonText = "Grab" },
+            },
+        },
+        {
+            Title = "Utils",
+            Icon = "shield",
+            Controls = {
+                { Kind = "Toggle", Id = "utils_auto_evade", Label = "Auto Evade Murderer", Description = "Moves away when the Murderer enters the danger radius.", Default = false },
+                { Kind = "Slider", Id = "utils_danger_radius", Label = "Danger Radius", Min = 5, Max = 40, Default = 15, Step = 1 },
+                { Kind = "Slider", Id = "utils_evade_distance", Label = "Evade Distance", Min = 10, Max = 50, Default = 30, Step = 1 },
+                { Kind = "Toggle", Id = "utils_hitbox", Label = "Hitbox Expander", Description = "Locally expands HumanoidRootPart for the selected combat target.", Default = false },
+                { Kind = "Slider", Id = "utils_hitbox_size", Label = "Hitbox Size", Min = 2, Max = 15, Default = 6, Step = 1 },
+                { Kind = "Dropdown", Id = "utils_hitbox_target", Label = "Hitbox Target", Options = { "Murderer", "Sheriff", "Everyone" }, Default = "Murderer" },
+            },
+        },
+    },
+}
