@@ -14,8 +14,16 @@ return {
                     Setting = "PlayerESP",
                     Id = "visuals_player_esp",
                     Label = "ESP de jogadores",
-                    Description = "Mostra o nome e as tags confirmadas abaixo de cada jogador.",
+                    Description = "Mostra nome, vida e tags confirmadas abaixo de cada jogador.",
                     Default = false,
+                },
+                {
+                    Kind = "Toggle",
+                    Setting = "PlayerESPHealth",
+                    Id = "visuals_player_health",
+                    Label = "Vida dos jogadores",
+                    Description = "Exibe vida atual, vida máxima, porcentagem e estado de morte.",
+                    Default = true,
                 },
                 {
                     Kind = "Toggle",

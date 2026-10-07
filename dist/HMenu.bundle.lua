@@ -1498,8 +1498,16 @@ return {
                     Setting = "PlayerESP",
                     Id = "visuals_player_esp",
                     Label = "ESP de jogadores",
-                    Description = "Mostra o nome e as tags confirmadas abaixo de cada jogador.",
+                    Description = "Mostra nome, vida e tags confirmadas abaixo de cada jogador.",
                     Default = false,
+                },
+                {
+                    Kind = "Toggle",
+                    Setting = "PlayerESPHealth",
+                    Id = "visuals_player_health",
+                    Label = "Vida dos jogadores",
+                    Description = "Exibe vida atual, vida máxima, porcentagem e estado de morte.",
+                    Default = true,
                 },
                 {
                     Kind = "Toggle",
@@ -2055,6 +2063,7 @@ function Visuals:Create()
         GlassESP = false,
         GlassTransparency = 82,
         PlayerESP = false,
+        PlayerESPHealth = true,
         PlayerESPTeams = true,
         PlayerESPAura = true,
         PlayerESPAuraIntensity = 45,
@@ -2280,7 +2289,7 @@ function Visuals:Create()
         local gui = Instance.new("BillboardGui")
         gui.Name = PLAYER_ESP_NAME
         gui.Adornee = adornee
-        gui.Size = UDim2.fromOffset(230, 68)
+        gui.Size = UDim2.fromOffset(230, 83)
         gui.StudsOffsetWorldSpace = Vector3.new(0, 3.2, 0)
         gui.AlwaysOnTop = true
         gui.LightInfluence = 0
@@ -2314,9 +2323,10 @@ function Visuals:Create()
             Character = character,
             Humanoid = humanoid,
             Name = nameLabel,
-            Team = makeText(gui, "TeamTag", 1),
-            GlassMaker = makeText(gui, "GlassMakerTag", 2),
-            Baby = makeText(gui, "BabyTag", 3),
+            Health = makeText(gui, "HealthTag", 1),
+            Team = makeText(gui, "TeamTag", 2),
+            GlassMaker = makeText(gui, "GlassMakerTag", 3),
+            Baby = makeText(gui, "BabyTag", 4),
         }
     end
 
@@ -2377,7 +2387,7 @@ function Visuals:Create()
                 local adornee = character and (character:FindFirstChild("Head")
                     or character:FindFirstChild("HumanoidRootPart"))
 
-                if not character or not adornee or not humanoid or humanoid.Health <= 0 then
+                if not character or not adornee or not humanoid then
                     removePlayerEsp(player)
                 else
                     local entry = playerEspEntries[player]
@@ -2401,7 +2411,20 @@ function Visuals:Create()
                     local babyLabel = type(babyType) == "string" and babyType ~= ""
                         and ("COM BEBÊ: " .. string.upper(babyType)) or "COM BEBÊ"
 
+                    local health = math.max(humanoid.Health, 0)
+                    local maxHealth = math.max(humanoid.MaxHealth, 1)
+                    local healthRatio = math.clamp(health / maxHealth, 0, 1)
+                    local healthColor = Color3.fromHSV(healthRatio * 0.33, 0.88, 1)
+                    local healthLabel = health <= 0 and "MORTO" or string.format(
+                        "VIDA: %d/%d (%d%%)",
+                        math.floor(health + 0.5),
+                        math.floor(maxHealth + 0.5),
+                        math.floor((healthRatio * 100) + 0.5)
+                    )
+
                     local row = 0
+                    row = setTag(entry.Health, settings.PlayerESPHealth,
+                        healthLabel, healthColor, row)
                     row = setTag(entry.Team, settings.PlayerESPTeams, "TIME: " .. teamName, teamColor, row)
                     row = setTag(entry.GlassMaker, settings.PlayerESPGlassMaker and glassMaker,
                         "GLASS MAKER", GLASS_MAKER_COLOR, row)
@@ -2457,7 +2480,7 @@ function Visuals:Create()
             settings.PlayerESP = value == true
             playerScanElapsed = 0
             if settings.PlayerESP then updatePlayerEsp() else clearPlayerEsp() end
-        elseif name == "PlayerESPTeams" or name == "PlayerESPAura"
+        elseif name == "PlayerESPHealth" or name == "PlayerESPTeams" or name == "PlayerESPAura"
             or name == "PlayerESPGlassMaker" or name == "PlayerESPBaby" then
             settings[name] = value == true
             if settings.PlayerESP then updatePlayerEsp() end

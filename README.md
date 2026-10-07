@@ -2,7 +2,7 @@
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
-O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll e Anti Push locais. `Visuals` identifica os vidros da ponte e mostra nomes, auras e tags coloridas de time, Glass Maker e portador do bebê. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
+O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll e Anti Push locais. `Visuals` identifica os vidros da ponte e mostra nomes, vida, auras e tags coloridas de time, Glass Maker e portador do bebê. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
 
 ## Carregamento
 
