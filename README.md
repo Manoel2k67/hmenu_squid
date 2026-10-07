@@ -2,7 +2,7 @@
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
-O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. As categorias antigas permanecem vazias, e a categoria `Teleport` contém somente o teleporte do personagem local até outro jogador. O mecanismo de temas permanece no código para ser conectado novamente quando o conteúdo novo for criado.
+O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip e Full Bright locais. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
 
 ## Carregamento
 
@@ -30,7 +30,8 @@ KeySystem.lua              entrada pública sem autenticação
 HMenu.lua                  janela, componentes, temas e ciclo de vida da interface
 HMenuConfig.lua            versão visual, tamanho, atalhos, cores e categorias
 HMenuSchema.lua            contratos das definições declarativas
-categories/                páginas do menu; somente Teleport possui conteúdo atualmente
+categories/                páginas do menu; Player e Teleport possuem conteúdo atualmente
+runtime/Player.lua         movimento, noclip e iluminação do jogador local
 runtime/Teleport.lua       teleporte do personagem local até um jogador selecionado
 theme/wallpapers/          wallpapers preservados dos temas
 dist/HMenu.bundle.lua      arquivo gerado usado no executor
