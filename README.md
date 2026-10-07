@@ -1,8 +1,10 @@
-# HMenu Roblox v1.0
+# HMenu Roblox v1.1
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
-O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll e Anti Push locais. `Visuals` identifica os vidros da ponte e mostra nomes, vida, auras e tags coloridas de time, Glass Maker e portador do bebê. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
+O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push e a base de Auto Collect. `Visuals` identifica os vidros da ponte e mostra nomes, vida, auras e tags coloridas de time, Glass Maker e portador do bebê. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
+
+O primeiro teste de **Auto Collect** observa `Workspace.BabyPickup` e tenta `Trigger.PickupPrompt` assim que o bebê é derrubado. O módulo nunca teleporta ou move o personagem. A confirmação usa `HasBaby=true`; se o servidor aplicar `MaxActivationDistance=5`, o menu informa que a tentativa distante não foi confirmada.
 
 ## Carregamento
 
@@ -31,7 +33,7 @@ HMenu.lua                  janela, componentes, temas e ciclo de vida da interfa
 HMenuConfig.lua            versão visual, tamanho, atalhos, cores e categorias
 HMenuSchema.lua            contratos das definições declarativas
 categories/                páginas do menu; Player, Teleport e Visuals possuem conteúdo
-runtime/Player.lua         movimento, noclip, iluminação e proteção contra ragdoll/impulso
+runtime/Player.lua         movimento, proteções e Auto Collect experimental do bebê
 runtime/Teleport.lua       teleporte do personagem local até um jogador selecionado
 runtime/Visuals.lua        Glass Vision e ESP com aura, nome e tags de time/cargo
 theme/wallpapers/          wallpapers preservados dos temas

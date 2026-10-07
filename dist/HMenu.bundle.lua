@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.0"
+Config.Version = "v1.1"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1409,6 +1409,35 @@ return {
                 },
             },
         },
+        {
+            Title = "Auto Collect",
+            Icon = "farm",
+            Controls = {
+                {
+                    Kind = "Paragraph",
+                    Id = "player_auto_collect_info",
+                    Label = "Coleta automática experimental",
+                    Description = "Detecta itens derrubados e tenta a interação sem mover ou teleportar seu personagem. O primeiro teste disponível é o bebê.",
+                    Height = 72,
+                },
+                {
+                    Kind = "Toggle",
+                    Setting = "AutoCollectBaby",
+                    Id = "player_auto_collect_baby",
+                    Label = "Auto coletar bebê",
+                    Description = "Quando Workspace.BabyPickup aparecer, tenta PickupPrompt imediatamente. Nunca usa teleporte.",
+                    Default = false,
+                },
+                {
+                    Kind = "Button",
+                    Setting = "CollectBabyNow",
+                    Id = "player_collect_baby_now",
+                    Label = "Testar no bebê atual",
+                    Description = "Tenta uma vez no PickupPrompt que já estiver no mapa, sem mover o personagem.",
+                    ButtonText = "Tentar agora",
+                },
+            },
+        },
     },
 }
 end
@@ -1605,6 +1634,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local StarterGui = game:GetService("StarterGui")
 
 local Player = {}
 
@@ -1624,7 +1655,11 @@ function Player:Create()
         FullBright = false,
         AntiRagdoll = false,
         AntiKnockback = false,
+        AutoCollectBaby = false,
     }
+    local attemptedBabyModels = setmetatable({}, { __mode = "k" })
+    local babyAttemptGeneration = 0
+    local missingPromptFunctionWarned = false
 
     local runtime = {}
 
@@ -1646,6 +1681,90 @@ function Player:Create()
     local function currentRootPart()
         local character = currentCharacter()
         return character and character:FindFirstChild("HumanoidRootPart")
+    end
+
+    local function notifyAutoCollect(message)
+        warn("[HMenu/AutoCollect] " .. tostring(message))
+        pcall(function()
+            StarterGui:SetCore("SendNotification", {
+                Title = "HMenu — Auto Collect",
+                Text = tostring(message),
+                Duration = 4,
+            })
+        end)
+    end
+
+    local function findBabyPrompt(model)
+        if not model or not model.Parent or model.Name ~= "BabyPickup" then return nil end
+        local trigger = model:FindFirstChild("Trigger")
+        local prompt = trigger and trigger:FindFirstChild("PickupPrompt")
+        if prompt and prompt:IsA("ProximityPrompt") then return prompt end
+        return nil
+    end
+
+    local function attemptBabyPickup(model, force)
+        if destroyed or not model or not model.Parent then return end
+        if not force and not settings.AutoCollectBaby then return end
+        if localPlayer:GetAttribute("HasBaby") == true then return end
+        if attemptedBabyModels[model] and not force then return end
+
+        attemptedBabyModels[model] = true
+        babyAttemptGeneration = babyAttemptGeneration + 1
+        local generation = babyAttemptGeneration
+
+        task.spawn(function()
+            local deadline = os.clock() + 2
+            local prompt = findBabyPrompt(model)
+            while not prompt and model.Parent and os.clock() < deadline do
+                task.wait()
+                if destroyed or generation ~= babyAttemptGeneration then return end
+                if not force and not settings.AutoCollectBaby then return end
+                prompt = findBabyPrompt(model)
+            end
+
+            if not prompt then
+                notifyAutoCollect("Bebê detectado, mas PickupPrompt não apareceu.")
+                return
+            end
+            if type(fireproximityprompt) ~= "function" then
+                if not missingPromptFunctionWarned then
+                    missingPromptFunctionWarned = true
+                    notifyAutoCollect("Seu executor não oferece fireproximityprompt.")
+                end
+                return
+            end
+
+            notifyAutoCollect("Bebê detectado — tentativa sem teleporte enviada.")
+            local ok, err = pcall(fireproximityprompt, prompt, 0)
+            if not ok then
+                notifyAutoCollect("Falha ao acionar o prompt: " .. tostring(err))
+                return
+            end
+
+            local confirmationDeadline = os.clock() + 2.5
+            while not destroyed and os.clock() < confirmationDeadline do
+                if localPlayer:GetAttribute("HasBaby") == true then
+                    notifyAutoCollect("Bebê coletado com sucesso sem teleporte.")
+                    return
+                end
+                if not model.Parent then
+                    task.wait(0.1)
+                    if localPlayer:GetAttribute("HasBaby") == true then
+                        notifyAutoCollect("Bebê coletado com sucesso sem teleporte.")
+                    else
+                        notifyAutoCollect("O bebê sumiu, mas outro jogador pode ter pegado.")
+                    end
+                    return
+                end
+                task.wait(0.05)
+            end
+            notifyAutoCollect("Tentativa sem confirmação; o servidor pode exigir distância de até 5 studs.")
+        end)
+    end
+
+    local function currentBabyModel()
+        local model = Workspace:FindFirstChild("BabyPickup")
+        return model and model:IsA("Model") and model or nil
     end
 
     local function rememberHumanoid(humanoid)
@@ -1850,6 +1969,19 @@ function Player:Create()
         end)
     end)
 
+    connect(Workspace.ChildAdded, function(child)
+        if destroyed or not settings.AutoCollectBaby then return end
+        if child.Name == "BabyPickup" and child:IsA("Model") then
+            attemptBabyPickup(child, false)
+        end
+    end)
+
+    connect(Workspace.ChildRemoved, function(child)
+        if child.Name == "BabyPickup" then
+            attemptedBabyModels[child] = nil
+        end
+    end)
+
     function runtime:Set(name, value)
         if destroyed then return end
 
@@ -1876,6 +2008,23 @@ function Player:Create()
             settings.AntiKnockback = value == true
             if not settings.AntiKnockback then
                 impactUntil = 0
+            end
+        elseif name == "AutoCollectBaby" then
+            settings.AutoCollectBaby = value == true
+            babyAttemptGeneration = babyAttemptGeneration + 1
+            if settings.AutoCollectBaby then
+                notifyAutoCollect("Auto coletar bebê ativado. Nenhum teleporte será usado.")
+                local model = currentBabyModel()
+                if model then attemptBabyPickup(model, false) end
+            else
+                notifyAutoCollect("Auto coletar bebê desativado.")
+            end
+        elseif name == "CollectBabyNow" then
+            local model = currentBabyModel()
+            if model then
+                attemptBabyPickup(model, true)
+            else
+                notifyAutoCollect("Nenhum Workspace.BabyPickup disponível agora.")
             end
         end
     end
