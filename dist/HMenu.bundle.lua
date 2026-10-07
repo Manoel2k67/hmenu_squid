@@ -191,8 +191,8 @@ function Schema.ValidateCategory(category, path, categoryIds, controlIds)
     if category.RuntimeModule ~= nil then
         requireNonEmptyString(category.RuntimeModule, path .. ".RuntimeModule")
     end
-    if type(category.Sections) ~= "table" or #category.Sections == 0 then
-        error(path .. ".Sections deve conter ao menos uma seção", 0)
+    if type(category.Sections) ~= "table" then
+        error(path .. ".Sections deve ser uma tabela", 0)
     end
 
     for sectionIndex, section in ipairs(category.Sections) do
