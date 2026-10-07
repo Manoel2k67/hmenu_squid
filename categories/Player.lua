@@ -90,27 +90,12 @@ return {
             Icon = "farm",
             Controls = {
                 {
-                    Kind = "Paragraph",
-                    Id = "player_auto_collect_info",
-                    Label = "Coleta automática experimental",
-                    Description = "Detecta itens derrubados e tenta a interação sem mover ou teleportar seu personagem. O primeiro teste disponível é o bebê.",
-                    Height = 72,
-                },
-                {
                     Kind = "Toggle",
                     Setting = "AutoCollectBaby",
                     Id = "player_auto_collect_baby",
                     Label = "Auto coletar bebê",
                     Description = "Quando Workspace.BabyPickup aparecer, tenta PickupPrompt imediatamente. Nunca usa teleporte.",
                     Default = false,
-                },
-                {
-                    Kind = "Button",
-                    Setting = "CollectBabyNow",
-                    Id = "player_collect_baby_now",
-                    Label = "Testar no bebê atual",
-                    Description = "Tenta uma vez no PickupPrompt que já estiver no mapa, sem mover o personagem.",
-                    ButtonText = "Tentar agora",
                 },
             },
         },
