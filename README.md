@@ -4,7 +4,7 @@ Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
 O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push e a base de Auto Collect. `Visuals` identifica os vidros da ponte e mostra nomes, vida, auras e tags coloridas de time, Glass Maker e portador do bebê. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
 
-O primeiro teste de **Auto Collect** observa `Workspace.BabyPickup` e tenta `Trigger.PickupPrompt` assim que o bebê é derrubado. O módulo nunca teleporta ou move o personagem. A confirmação usa `HasBaby=true`; se o servidor aplicar `MaxActivationDistance=5`, o menu informa que a tentativa distante não foi confirmada.
+O teste de **Auto Collect** observa `Workspace.BabyPickup` e tenta `Trigger.PickupPrompt` assim que o bebê é derrubado. O módulo nunca teleporta ou move o personagem. Durante a tentativa, mede a distância real, amplia localmente `MaxActivationDistance` para `1000`, zera `HoldDuration`, desativa linha de visão e chama `fireproximityprompt` com modo de salto. A confirmação usa `HasBaby=true` e distingue prompt local, aceitação do servidor e pickup feito por outro jogador.
 
 ## Carregamento
 

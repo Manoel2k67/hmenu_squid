@@ -4,7 +4,7 @@
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 
-local RELEASE_VERSION = "1.1.0"
+local RELEASE_VERSION = "1.1.1"
 local BUNDLE_PATH = "dist/HMenu.bundle.lua"
 local MAX_DOWNLOAD_ATTEMPTS = 4
 local RETRY_BASE_DELAY = 0.75

@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.1"
+Config.Version = "v1.1.1"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1702,6 +1702,19 @@ function Player:Create()
         return nil
     end
 
+    local function distanceToPrompt(prompt)
+        local rootPart = currentRootPart()
+        if not rootPart or not prompt then return nil end
+        local adornee = prompt.Parent
+        if adornee and adornee:IsA("Attachment") then
+            return (rootPart.Position - adornee.WorldPosition).Magnitude
+        end
+        if adornee and adornee:IsA("BasePart") then
+            return (rootPart.Position - adornee.Position).Magnitude
+        end
+        return nil
+    end
+
     local function attemptBabyPickup(model, force)
         if destroyed or not model or not model.Parent then return end
         if not force and not settings.AutoCollectBaby then return end
@@ -1734,31 +1747,83 @@ function Player:Create()
                 return
             end
 
-            notifyAutoCollect("Bebê detectado — tentativa sem teleporte enviada.")
-            local ok, err = pcall(fireproximityprompt, prompt, 0)
+            local distance = distanceToPrompt(prompt)
+            local originalDistance = prompt.MaxActivationDistance
+            local originalHoldDuration = prompt.HoldDuration
+            local originalLineOfSight = prompt.RequiresLineOfSight
+            local expanded = pcall(function()
+                prompt.MaxActivationDistance = 1000
+                prompt.HoldDuration = 0
+                prompt.RequiresLineOfSight = false
+            end)
+            local promptTriggered = false
+            local triggerConnection
+            pcall(function()
+                triggerConnection = prompt.Triggered:Connect(function(player)
+                    if player == nil or player == localPlayer then promptTriggered = true end
+                end)
+            end)
+            local function finishPromptTest()
+                if triggerConnection then
+                    pcall(function() triggerConnection:Disconnect() end)
+                    triggerConnection = nil
+                end
+                pcall(function()
+                    prompt.MaxActivationDistance = originalDistance
+                    prompt.HoldDuration = originalHoldDuration
+                    prompt.RequiresLineOfSight = originalLineOfSight
+                end)
+            end
+
+            notifyAutoCollect(string.format(
+                "Bebê a %s studs — alcance local %s; tentativa sem teleporte enviada.",
+                distance and string.format("%.1f", distance) or "?",
+                expanded and "ampliado para 1000" or "não pôde ser ampliado"))
+
+            local ok, err = pcall(fireproximityprompt, prompt, 0, true)
             if not ok then
+                ok, err = pcall(fireproximityprompt, prompt, 0)
+            end
+            if ok then
+                task.wait(0.12)
+                if not promptTriggered and model.Parent
+                    and localPlayer:GetAttribute("HasBaby") ~= true then
+                    pcall(fireproximityprompt, prompt, 0)
+                end
+            end
+            if not ok then
+                finishPromptTest()
                 notifyAutoCollect("Falha ao acionar o prompt: " .. tostring(err))
                 return
             end
 
-            local confirmationDeadline = os.clock() + 2.5
+            local confirmationDeadline = os.clock() + 3
             while not destroyed and os.clock() < confirmationDeadline do
                 if localPlayer:GetAttribute("HasBaby") == true then
+                    finishPromptTest()
                     notifyAutoCollect("Bebê coletado com sucesso sem teleporte.")
                     return
                 end
                 if not model.Parent then
                     task.wait(0.1)
+                    finishPromptTest()
                     if localPlayer:GetAttribute("HasBaby") == true then
                         notifyAutoCollect("Bebê coletado com sucesso sem teleporte.")
+                    elseif promptTriggered then
+                        notifyAutoCollect("Prompt disparou localmente, mas o servidor não deu o bebê; outro jogador pegou ou a distância foi recusada.")
                     else
-                        notifyAutoCollect("O bebê sumiu, mas outro jogador pode ter pegado.")
+                        notifyAutoCollect("Prompt não disparou neste cliente e o bebê foi pego por outro jogador.")
                     end
                     return
                 end
                 task.wait(0.05)
             end
-            notifyAutoCollect("Tentativa sem confirmação; o servidor pode exigir distância de até 5 studs.")
+            finishPromptTest()
+            if promptTriggered then
+                notifyAutoCollect("Prompt disparou localmente, mas o servidor recusou o pickup; provável limite real de 5 studs.")
+            else
+                notifyAutoCollect("fireproximityprompt não disparou o prompt neste executor.")
+            end
         end)
     end
 
