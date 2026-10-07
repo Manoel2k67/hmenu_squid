@@ -1,5 +1,5 @@
 -- HMenu bootstrap. Public entry point (kept under this name for compatibility):
--- loadstring(game:HttpGet("https://raw.githubusercontent.com/Manoel2k67/hmenu_roblox/main/KeySystem.lua", true))()
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/Manoel2k67/hmenu_squid/main/KeySystem.lua", true))()
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -9,8 +9,8 @@ local BUNDLE_PATH = "dist/HMenu.bundle.lua"
 local MAX_DOWNLOAD_ATTEMPTS = 4
 local RETRY_BASE_DELAY = 0.75
 local REPOSITORIES = {
-    "https://raw.githubusercontent.com/Manoel2k67/hmenu_roblox/main/",
-    "https://cdn.jsdelivr.net/gh/Manoel2k67/hmenu_roblox@main/",
+    "https://raw.githubusercontent.com/Manoel2k67/hmenu_squid/main/",
+    "https://cdn.jsdelivr.net/gh/Manoel2k67/hmenu_squid@main/",
 }
 
 if type(_G.__HMENU_CLEANUP) == "function" then

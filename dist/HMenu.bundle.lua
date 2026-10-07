@@ -1243,17 +1243,7 @@ return {
     Label = "Atmosphere",
     Icon = "atmosphere",
     Bookmarked = false,
-    Sections = {
-        {
-            Title = "World Appearance",
-            Icon = "cloud",
-            Controls = {
-                { Kind = "Dropdown", Id = "weather", Label = "Weather", Options = { "Default", "Clear", "Night", "Fog" }, Default = "Default" },
-                { Kind = "Slider", Id = "brightness", Label = "Brightness", Min = 0, Max = 10, Default = 3, Step = 0.1 },
-                { Kind = "Toggle", Id = "custom_sky", Label = "Custom Sky", Default = false },
-            },
-        },
-    },
+    Sections = {},
 }
 end
 -- END categories/Atmosphere.lua
@@ -1265,52 +1255,7 @@ return {
     Label = "Combat",
     Icon = "target",
     Bookmarked = false,
-    Sections = {
-        {
-            Title = "Murder",
-            Icon = "target",
-            Controls = {
-                { Kind = "Toggle", Id = "murder_kill_aura", Label = "Kill Aura", Description = "Automatically attacks a valid target inside the aura radius.", Default = false },
-                { Kind = "Slider", Id = "murder_aura_radius", Label = "Aura Radius", Min = 4, Max = 25, Default = 12, Step = 1 },
-                { Kind = "Slider", Id = "murder_attack_delay", Label = "Attack Delay", Min = 0.05, Max = 1, Default = 0.15, Step = 0.05 },
-                { Kind = "Dropdown", Id = "murder_target_priority", Label = "Target Priority", Options = { "Nearest", "Sheriff First" }, Default = "Nearest" },
-                { Kind = "Toggle", Id = "murder_auto_equip", Label = "Auto Equip Knife", Description = "Keeps the Knife equipped while you are the Murderer.", Default = false },
-                { Kind = "Button", Id = "murder_equip_knife", Label = "Equip Knife", ButtonText = "Equip" },
-                { Kind = "Button", Id = "murder_kill_nearest", Label = "Kill Nearest", Description = "Blink-stabs the nearest alive target and returns to your position.", ButtonText = "Kill" },
-                { Kind = "Button", Id = "murder_kill_sheriff", Label = "Kill Sheriff", Description = "Targets the Sheriff or current Hero carrying the Gun.", ButtonText = "Kill" },
-                { Kind = "Button", Id = "murder_kill_all", Label = "Kill All", Description = "Sequentially attacks every alive non-Murderer target.", ButtonText = "Kill All" },
-            },
-        },
-        {
-            Title = "Sheriff",
-            Icon = "target",
-            Controls = {
-                { Kind = "Button", Id = "sheriff_shoot_murderer", Label = "Atirar no Murderer", Description = "Equipa a Gun e envia um tiro diretamente para o Murderer detectado.", ButtonText = "Atirar" },
-                { Kind = "Toggle", Id = "sheriff_perfect_shots", Label = "Perfect Shots (experimental)", Description = "Tenta redirecionar tiros manuais; a compatibilidade depende do executor.", Default = false },
-                { Kind = "Toggle", Id = "sheriff_auto_shoot", Label = "Auto Shoot Murderer", Description = "When the Murderer is visible, pulls the Gun from Backpack and fires automatically.", Default = false },
-                { Kind = "Slider", Id = "sheriff_shoot_cooldown", Label = "Auto Shoot Cooldown", Min = 0.4, Max = 2, Default = 1.1, Step = 0.1 },
-                { Kind = "Dropdown", Id = "sheriff_target_part", Label = "Target Part", Options = { "HumanoidRootPart", "Head", "UpperTorso" }, Default = "HumanoidRootPart" },
-                { Kind = "Slider", Id = "sheriff_prediction", Label = "Prediction", Min = 0, Max = 0.35, Default = 0.08, Step = 0.01 },
-                { Kind = "Toggle", Id = "sheriff_ignore_walls", Label = "Ignore Walls", Description = "Off by default: Auto Shoot requires direct line of sight.", Default = false },
-                { Kind = "Toggle", Id = "sheriff_auto_equip", Label = "Auto Equip Gun", Description = "Automatically equips the Gun when it enters your Backpack.", Default = false },
-                { Kind = "Button", Id = "sheriff_equip_gun", Label = "Equip Gun", ButtonText = "Equip" },
-                { Kind = "Toggle", Id = "sheriff_auto_grab", Label = "Auto Grab Dropped Gun", Description = "Attempts to collect GunDrop without moving or changing your CFrame.", Default = false },
-                { Kind = "Button", Id = "sheriff_grab_now", Label = "Grab Dropped Gun Now", Description = "Remote pickup attempt only; your character stays in place.", ButtonText = "Grab" },
-            },
-        },
-        {
-            Title = "Utils",
-            Icon = "shield",
-            Controls = {
-                { Kind = "Toggle", Id = "utils_auto_evade", Label = "Auto Evade Murderer", Description = "Moves away when the Murderer enters the danger radius.", Default = false },
-                { Kind = "Slider", Id = "utils_danger_radius", Label = "Danger Radius", Min = 5, Max = 40, Default = 15, Step = 1 },
-                { Kind = "Slider", Id = "utils_evade_distance", Label = "Evade Distance", Min = 10, Max = 50, Default = 30, Step = 1 },
-                { Kind = "Toggle", Id = "utils_hitbox", Label = "Hitbox Expander", Description = "Locally expands HumanoidRootPart for the selected combat target.", Default = false },
-                { Kind = "Slider", Id = "utils_hitbox_size", Label = "Hitbox Size", Min = 2, Max = 15, Default = 6, Step = 1 },
-                { Kind = "Dropdown", Id = "utils_hitbox_target", Label = "Hitbox Target", Options = { "Murderer", "Sheriff", "Everyone" }, Default = "Murderer" },
-            },
-        },
-    },
+    Sections = {},
 }
 end
 -- END categories/Combat.lua
@@ -1318,19 +1263,11 @@ end
 -- BEGIN categories/Credits.lua
 __modules["categories/Credits.lua"] = function()
 return {
-    Id = "Credits", Label = "Credits", Icon = "info", Bookmarked = false,
-    Sections = {
-        { Title = "About", Icon = "info", Controls = {
-            { Kind = "Paragraph", Label = "HMenu v1.0", Description = "Interface modular pronta para receber novas funções." },
-            { Kind = "Paragraph", Label = "Desenvolvimento", Description = "Manoel2k67 / HMenu" },
-            {
-                Kind = "Button",
-                Id = "copy_community",
-                Label = "Community",
-                ButtonText = "Copiar link",
-            },
-        }},
-    },
+    Id = "Credits",
+    Label = "Credits",
+    Icon = "info",
+    Bookmarked = false,
+    Sections = {},
 }
 end
 -- END categories/Credits.lua
@@ -1338,14 +1275,11 @@ end
 -- BEGIN categories/Emotes.lua
 __modules["categories/Emotes.lua"] = function()
 return {
-    Id = "Emotes", Label = "Emotes", Icon = "smile", Bookmarked = false,
-    Sections = {
-        { Title = "Animations", Icon = "music", Controls = {
-            { Kind = "Dropdown", Id = "emote", Label = "Selected Emote", Options = { "Sit", "Zen", "Ninja Rest", "Dab", "Floss", "Zombie", "Headless" }, Default = "Sit" },
-            { Kind = "Button", Id = "play_emote", Label = "Play Emote", ButtonText = "Reproduzir" },
-            { Kind = "Toggle", Id = "loop_emote", Label = "Loop", Default = false },
-        }},
-    },
+    Id = "Emotes",
+    Label = "Emotes",
+    Icon = "smile",
+    Bookmarked = false,
+    Sections = {},
 }
 end
 -- END categories/Emotes.lua
@@ -1357,36 +1291,7 @@ return {
     Label = "Farm",
     Icon = "farm",
     Bookmarked = false,
-    Sections = {
-        {
-            Title = "Coin Farm",
-            Icon = "farm",
-            Controls = {
-                { Kind = "Toggle", Id = "auto_coins", Label = "Auto Collect Coins", Description = "Continuously collects the nearest available coin.", Default = false },
-                { Kind = "Button", Id = "nearest_coin", Label = "Teleport to Nearest Coin", ButtonText = "Collect" },
-                { Kind = "Toggle", Id = "return_after_sweep", Label = "Return After Sweep", Description = "Returns to the starting position after one-time collection.", Default = false },
-            },
-        },
-        {
-            Title = "Event Items",
-            Icon = "refresh",
-            Controls = {
-                { Kind = "Dropdown", Id = "event_filter", Label = "Event Item", Options = { "All", "Eggs", "Beach Balls", "Candy" }, Default = "All" },
-                { Kind = "Toggle", Id = "auto_event_items", Label = "Auto Collect Event Items", Description = "Looks for eggs, beach balls, candy and event tokens.", Default = false },
-                { Kind = "Button", Id = "collect_all_events", Label = "Collect All Event Items", ButtonText = "Collect" },
-            },
-        },
-        {
-            Title = "Movement Settings",
-            Icon = "settings",
-            Controls = {
-                { Kind = "Dropdown", Id = "farm_mode", Label = "Movement Mode", Options = { "Teleport", "Smooth", "Walk" }, Default = "Teleport" },
-                { Kind = "Slider", Id = "farm_delay", Label = "Action Delay", Min = 0.1, Max = 1, Default = 0.2, Step = 0.1 },
-                { Kind = "Slider", Id = "smooth_speed", Label = "Smooth Speed", Min = 20, Max = 200, Default = 70, Step = 5 },
-                { Kind = "Slider", Id = "farm_walk_speed", Label = "Farm Walk Speed", Min = 16, Max = 100, Default = 16, Step = 2 },
-            },
-        },
-    },
+    Sections = {},
 }
 end
 -- END categories/Farm.lua
@@ -1394,18 +1299,11 @@ end
 -- BEGIN categories/Main.lua
 __modules["categories/Main.lua"] = function()
 return {
-    Id = "Main", Label = "Main", Icon = "home", Bookmarked = false,
-    Sections = {
-        { Title = "Overview", Icon = "overview", Controls = {
-            { Kind = "Paragraph", Label = "HMenu está pronto", Description = "Interface modular carregada com dados de demonstração." },
-            { Kind = "Dropdown", Id = "profile", Label = "Perfil ativo", Options = { "Default", "Performance", "Custom" }, Default = "Default" },
-            { Kind = "Button", Id = "save_profile", Label = "Salvar preferências", ButtonText = "Salvar" },
-        }},
-        { Title = "Quick settings", Icon = "settings", Controls = {
-            { Kind = "Toggle", Id = "notifications", Label = "Notificações", Default = false },
-            { Kind = "Toggle", Id = "auto_save", Label = "Salvar automaticamente", Default = false },
-        }},
-    },
+    Id = "Main",
+    Label = "Main",
+    Icon = "home",
+    Bookmarked = false,
+    Sections = {},
 }
 end
 -- END categories/Main.lua
@@ -1413,24 +1311,11 @@ end
 -- BEGIN categories/Misc.lua
 __modules["categories/Misc.lua"] = function()
 return {
-    Id = "Misc", Label = "Misc", Icon = "settings", Bookmarked = false,
-    Sections = {
-        { Title = "Themes", Icon = "palette", Controls = {
-            {
-                Kind = "Dropdown", Id = "menu_theme", Label = "Menu Theme",
-                Description = "Changes the menu palette and background while keeping controls easy to read.",
-                Options = { "Default", "Purple", "Orange" }, Default = "Default", UseList = true,
-                Callback = function(value)
-                    local setTheme = rawget(_G, "__HMENU_SET_THEME")
-                    if type(setTheme) == "function" then setTheme(value) end
-                end,
-            },
-        }},
-        { Title = "Utilities", Icon = "sliders", Controls = {
-            { Kind = "Toggle", Id = "show_fps", Label = "Show FPS", Description = "Displays live FPS and network ping.", Default = false },
-            { Kind = "Toggle", Id = "performance_mode", Label = "Performance Mode", Description = "Temporarily reduces local visual effects to improve performance.", Default = false },
-        }},
-    },
+    Id = "Misc",
+    Label = "Misc",
+    Icon = "settings",
+    Bookmarked = false,
+    Sections = {},
 }
 end
 -- END categories/Misc.lua
@@ -1442,44 +1327,7 @@ return {
     Label = "Player",
     Icon = "player",
     Bookmarked = false,
-    Sections = {
-        {
-            Title = "Movement",
-            Icon = "player",
-            Controls = {
-                { Kind = "Slider", Id = "walk_speed", Label = "Walk Speed", Min = 8, Max = 200, Default = 16, Step = 1 },
-                { Kind = "Toggle", Id = "lock_walk_speed", Label = "Lock Walk Speed", Description = "Keeps the selected speed if the game changes it.", Default = false },
-                { Kind = "Slider", Id = "jump_power", Label = "Jump Power", Min = 25, Max = 200, Default = 50, Step = 1 },
-                { Kind = "Toggle", Id = "lock_jump_power", Label = "Lock Jump Power", Description = "Keeps the selected jump power active.", Default = false },
-                { Kind = "Toggle", Id = "infinite_jump", Label = "Infinite Jump", Description = "Allows jumping while already in the air.", Default = false },
-            },
-        },
-        {
-            Title = "Flight",
-            Icon = "navigation",
-            Controls = {
-                { Kind = "Toggle", Id = "fly", Label = "Fly", Description = "WASD to move | Space up | LeftControl down", Default = false },
-                { Kind = "Slider", Id = "fly_speed", Label = "Fly Speed", Min = 10, Max = 200, Default = 60, Step = 5 },
-            },
-        },
-        {
-            Title = "Protection and Collision",
-            Icon = "shield",
-            Controls = {
-                { Kind = "Toggle", Id = "noclip", Label = "Noclip", Description = "Disables collision on your character while active.", Default = false },
-                { Kind = "Toggle", Id = "anti_fling", Label = "Anti Fling", Description = "Returns to the last safe position after extreme velocity.", Default = false },
-                { Kind = "Toggle", Id = "anti_void", Label = "Anti Void", Description = "Returns to the last grounded position before falling into the void.", Default = false },
-            },
-        },
-        {
-            Title = "Utilities",
-            Icon = "settings",
-            Controls = {
-                { Kind = "Toggle", Id = "anti_afk", Label = "Anti AFK", Description = "Prevents the standard idle disconnect.", Default = false },
-                { Kind = "Toggle", Id = "anti_sit", Label = "Anti Sit", Description = "Immediately leaves seats and forced sitting states.", Default = false },
-            },
-        },
-    },
+    Sections = {},
 }
 end
 -- END categories/Player.lua
@@ -1491,37 +1339,7 @@ return {
     Label = "Teleport",
     Icon = "navigation",
     Bookmarked = false,
-    Sections = {
-        {
-            Title = "Role Teleports",
-            Icon = "users",
-            Controls = {
-                { Kind = "Button", Id = "tp_murderer", Label = "Teleport to Murderer", Description = "Moves behind the current murderer.", ButtonText = "Teleport" },
-                { Kind = "Button", Id = "tp_sheriff", Label = "Teleport to Sheriff", Description = "Also finds the Hero carrying the gun.", ButtonText = "Teleport" },
-                { Kind = "Button", Id = "tp_gun", Label = "Teleport to Dropped Gun", ButtonText = "Teleport" },
-            },
-        },
-        {
-            Title = "Player Teleport",
-            Icon = "player",
-            Controls = {
-                { Kind = "Dropdown", Options = { "Select a player" }, UseList = true, Id = "target_player", Label = "Target Player", Default = "Select a player" },
-                { Kind = "Dropdown", Id = "arrival_mode", Label = "Arrival Position", Options = { "Behind", "In Front", "Above" }, Default = "Behind" },
-                { Kind = "Slider", Id = "arrival_distance", Label = "Arrival Distance", Min = 2, Max = 12, Default = 4, Step = 1 },
-                { Kind = "Button", Id = "tp_selected", Label = "Teleport to Selected Player", ButtonText = "Teleport" },
-                { Kind = "Button", Id = "tp_nearest", Label = "Teleport to Nearest Player", ButtonText = "Teleport" },
-                { Kind = "Button", Id = "tp_random", Label = "Teleport to Random Player", ButtonText = "Teleport" },
-            },
-        },
-        {
-            Title = "Saved Location",
-            Icon = "map",
-            Controls = {
-                { Kind = "Button", Id = "save_position", Label = "Save Current Position", Description = "Stores the exact position for this session.", ButtonText = "Save" },
-                { Kind = "Button", Id = "load_position", Label = "Return to Saved Position", ButtonText = "Return" },
-            },
-        },
-    },
+    Sections = {},
 }
 end
 -- END categories/Teleport.lua
@@ -1533,36 +1351,7 @@ return {
     Label = "Troll",
     Icon = "fire",
     Bookmarked = false,
-    Sections = {
-        {
-            Title = "Fling",
-            Icon = "fire",
-            Controls = {
-                {
-                    Kind = "Dropdown",
-                    Options = { "Select a player" },
-                    UseList = true,
-                    Id = "troll_target_player",
-                    Label = "Target Player",
-                    Default = "Select a player",
-                },
-                {
-                    Kind = "Button",
-                    Id = "fling_selected",
-                    Label = "Fling Target",
-                    Description = "Arremessa o jogador selecionado para fora do mapa e retorna você à posição inicial.",
-                    ButtonText = "Fling",
-                },
-                {
-                    Kind = "Toggle",
-                    Id = "touch_fling",
-                    Label = "Fling ao Encostar",
-                    Description = "Arremessa para fora do mapa qualquer jogador em quem você encostar.",
-                    Default = false,
-                },
-            },
-        },
-    },
+    Sections = {},
 }
 end
 -- END categories/Troll.lua
@@ -1574,45 +1363,7 @@ return {
     Label = "Visuals",
     Icon = "eye",
     Bookmarked = false,
-    Sections = {
-        {
-            Title = "Player ESP",
-            Icon = "eye",
-            Controls = {
-                { Kind = "Toggle", Id = "esp_enabled", Label = "Enable ESP", Description = "Innocent: green | Murderer: red | Sheriff: blue", Default = false },
-                { Kind = "Toggle", Id = "player_names", Label = "Player Names", Default = false },
-                { Kind = "Toggle", Id = "show_roles", Label = "Show Roles", Default = false },
-                { Kind = "Toggle", Id = "show_distance", Label = "Show Distance", Default = false },
-                { Kind = "Toggle", Id = "show_health", Label = "Show Health", Default = false },
-                { Kind = "Toggle", Id = "xray", Label = "X-Ray ESP", Description = "Keep role highlights visible through walls.", Default = false },
-                { Kind = "Slider", Id = "esp_fill", Label = "Fill Transparency", Min = 0, Max = 100, Default = 68, Step = 1 },
-            },
-        },
-        {
-            Title = "Items ESP",
-            Icon = "map",
-            Controls = {
-                { Kind = "Toggle", Id = "show_coins", Label = "Show Coins", Description = "Highlights coins. X-Ray ESP controls visibility through walls.", Default = false },
-                { Kind = "Toggle", Id = "dropped_items", Label = "Show Dropped Gun", Description = "Highlights GunDrop in gold and adds a world label.", Default = false },
-            },
-        },
-        {
-            Title = "Camera",
-            Icon = "camera",
-            Controls = {
-                { Kind = "Slider", Id = "fov", Label = "Field of View", Min = 50, Max = 120, Default = 70, Step = 1 },
-                { Kind = "Dropdown", Id = "crosshair", Label = "Crosshair", Options = { "Off", "Dot", "Classic" }, Default = "Off" },
-            },
-        },
-        {
-            Title = "World Visibility",
-            Icon = "atmosphere",
-            Controls = {
-                { Kind = "Toggle", Id = "full_bright", Label = "Full Bright", Description = "Brightens dark maps while preserving the original settings.", Default = false },
-                { Kind = "Toggle", Id = "no_fog", Label = "Remove Fog", Default = false },
-            },
-        },
-    },
+    Sections = {},
 }
 end
 -- END categories/Visuals.lua
@@ -1620,14 +1371,11 @@ end
 -- BEGIN categories/Whitelist.lua
 __modules["categories/Whitelist.lua"] = function()
 return {
-    Id = "Whitelist", Label = "Whitelist", Icon = "shield", Bookmarked = false,
-    Sections = {
-        { Title = "Access list", Icon = "users", Controls = {
-            { Kind = "Toggle", Id = "friends_allowed", Label = "Allow Friends", Default = false },
-            { Kind = "Dropdown", Id = "list_policy", Label = "Default Policy", Options = { "Ignore", "Allow", "Block" }, Default = "Ignore" },
-            { Kind = "Button", Id = "refresh_list", Label = "Refresh List", ButtonText = "Atualizar" },
-        }},
-    },
+    Id = "Whitelist",
+    Label = "Whitelist",
+    Icon = "shield",
+    Bookmarked = false,
+    Sections = {},
 }
 end
 -- END categories/Whitelist.lua
