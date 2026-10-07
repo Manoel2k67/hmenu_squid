@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.1.2"
+Config.Version = "v1.1.4"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1419,7 +1419,7 @@ return {
                     Id = "player_auto_collect_baby",
                     Label = "Auto coletar bebê",
                     Description = "Quando Workspace.BabyPickup aparecer, tenta PickupPrompt imediatamente. Nunca usa teleporte.",
-                    Default = false,
+                    Default = rawget(_G, "__HMENU_AUTO_COLLECT_BABY") == true,
                 },
             },
         },
@@ -1622,6 +1622,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 local Player = {}
+local AUTO_COLLECT_BABY_KEY = "__HMENU_AUTO_COLLECT_BABY"
 
 function Player:Create()
     local localPlayer = Players.LocalPlayer
@@ -1639,7 +1640,7 @@ function Player:Create()
         FullBright = false,
         AntiRagdoll = false,
         AntiKnockback = false,
-        AutoCollectBaby = false,
+        AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
     }
     local attemptedBabyModels = setmetatable({}, { __mode = "k" })
     local babyAttemptGeneration = 0
@@ -1704,18 +1705,7 @@ function Player:Create()
                 prompt.HoldDuration = 0
                 prompt.RequiresLineOfSight = false
             end)
-            local promptTriggered = false
-            local triggerConnection
-            pcall(function()
-                triggerConnection = prompt.Triggered:Connect(function(player)
-                    if player == nil or player == localPlayer then promptTriggered = true end
-                end)
-            end)
             local function finishPromptTest()
-                if triggerConnection then
-                    pcall(function() triggerConnection:Disconnect() end)
-                    triggerConnection = nil
-                end
                 pcall(function()
                     prompt.MaxActivationDistance = originalDistance
                     prompt.HoldDuration = originalHoldDuration
@@ -1723,14 +1713,24 @@ function Player:Create()
                 end)
             end
 
-            local ok, err = pcall(fireproximityprompt, prompt, 0, true)
+            -- Give the client one frame to apply the local prompt range before triggering it.
+            RunService.Heartbeat:Wait()
+            if destroyed or generation ~= babyAttemptGeneration or not model.Parent then
+                finishPromptTest()
+                return
+            end
+            if not force and not settings.AutoCollectBaby then
+                finishPromptTest()
+                return
+            end
+
+            local ok = pcall(fireproximityprompt, prompt, 0, true)
             if not ok then
-                ok, err = pcall(fireproximityprompt, prompt, 0)
+                ok = pcall(fireproximityprompt, prompt, 0)
             end
             if ok then
                 task.wait(0.12)
-                if not promptTriggered and model.Parent
-                    and localPlayer:GetAttribute("HasBaby") ~= true then
+                if model.Parent and localPlayer:GetAttribute("HasBaby") ~= true then
                     pcall(fireproximityprompt, prompt, 0)
                 end
             end
@@ -1975,6 +1975,14 @@ function Player:Create()
         end
     end)
 
+    if settings.AutoCollectBaby then
+        task.defer(function()
+            if destroyed or not settings.AutoCollectBaby then return end
+            local model = currentBabyModel()
+            if model then attemptBabyPickup(model, false) end
+        end)
+    end
+
     function runtime:Set(name, value)
         if destroyed then return end
 
@@ -2004,6 +2012,7 @@ function Player:Create()
             end
         elseif name == "AutoCollectBaby" then
             settings.AutoCollectBaby = value == true
+            rawset(_G, AUTO_COLLECT_BABY_KEY, settings.AutoCollectBaby)
             babyAttemptGeneration = babyAttemptGeneration + 1
             if settings.AutoCollectBaby then
                 local model = currentBabyModel()

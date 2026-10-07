@@ -95,7 +95,7 @@ return {
                     Id = "player_auto_collect_baby",
                     Label = "Auto coletar bebê",
                     Description = "Quando Workspace.BabyPickup aparecer, tenta PickupPrompt imediatamente. Nunca usa teleporte.",
-                    Default = false,
+                    Default = rawget(_G, "__HMENU_AUTO_COLLECT_BABY") == true,
                 },
             },
         },
