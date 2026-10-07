@@ -1404,19 +1404,8 @@ return {
                     Setting = "AntiKnockback",
                     Id = "player_anti_knockback",
                     Label = "Anti Push / Knockback",
-                    Description = "Anula o impulso e retorna à última posição segura ao detectar o empurrão.",
+                    Description = "Anula o impulso somente quando o ragdoll é confirmado no seu personagem.",
                     Default = false,
-                },
-                {
-                    Kind = "Slider",
-                    Setting = "KnockbackThreshold",
-                    Id = "player_knockback_threshold",
-                    Label = "Limite de impulso",
-                    Description = "Velocidade máxima usada para registrar uma posição como segura.",
-                    Min = 20,
-                    Max = 150,
-                    Default = 55,
-                    Step = 5,
                 },
             },
         },
@@ -1618,9 +1607,7 @@ function Player:Create()
     local collisionOriginals = setmetatable({}, { __mode = "k" })
     local ragdollAttributeOriginals = setmetatable({}, { __mode = "k" })
     local lightingOriginals
-    local lastSafeCFrame
     local impactUntil = 0
-    local returnPending = false
     local destroyed = false
     local settings = {
         WalkSpeed = nil,
@@ -1629,7 +1616,6 @@ function Player:Create()
         FullBright = false,
         AntiRagdoll = false,
         AntiKnockback = false,
-        KnockbackThreshold = 55,
     }
 
     local runtime = {}
@@ -1794,32 +1780,17 @@ function Player:Create()
         end
     end
 
-    local function rememberSafePosition()
-        local humanoid = currentHumanoid()
-        local rootPart = currentRootPart()
-        if not humanoid or not rootPart or humanoid.Health <= 0 then return end
-        if humanoid.FloorMaterial == Enum.Material.Air then return end
-        if rootPart.AssemblyLinearVelocity.Magnitude > settings.KnockbackThreshold then return end
-        lastSafeCFrame = rootPart.CFrame
-    end
-
     local function neutralizeKnockback()
-        local character = currentCharacter()
         local rootPart = currentRootPart()
-        if not character or not rootPart then return end
+        if not rootPart then return end
 
         rootPart.AssemblyLinearVelocity = Vector3.zero
         rootPart.AssemblyAngularVelocity = Vector3.zero
-        if returnPending and lastSafeCFrame then
-            character:PivotTo(lastSafeCFrame)
-            returnPending = false
-        end
     end
 
-    local function beginImpactWindow(duration)
+    local function beginImpactWindow()
         if not settings.AntiKnockback then return end
-        impactUntil = math.max(impactUntil, os.clock() + math.clamp(tonumber(duration) or 0.75, 0.25, 3))
-        returnPending = true
+        impactUntil = math.max(impactUntil, os.clock() + 0.35)
         neutralizeKnockback()
         task.defer(function()
             if not destroyed and settings.AntiKnockback then neutralizeKnockback() end
@@ -1827,7 +1798,7 @@ function Player:Create()
     end
 
     local function isLocalCharacter(value)
-        return value == nil or value == currentCharacter()
+        return value == currentCharacter()
     end
 
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -1836,16 +1807,14 @@ function Player:Create()
         connect(movementRemote.OnClientEvent, function(action, target, duration)
             if destroyed then return end
 
-            if action == "impactCamShake" then
-                beginImpactWindow(0.75)
-            elseif action == "toggleRagdoll" and isLocalCharacter(target) then
+            if action == "toggleRagdoll" and isLocalCharacter(target) then
                 if settings.AntiRagdoll then
                     applyAntiRagdoll()
                     task.defer(function()
                         if not destroyed and settings.AntiRagdoll then applyAntiRagdoll() end
                     end)
                 end
-                beginImpactWindow(duration)
+                beginImpactWindow()
             end
         end)
     end
@@ -1858,8 +1827,6 @@ function Player:Create()
         if settings.AntiRagdoll then applyAntiRagdoll() end
         if settings.AntiKnockback and os.clock() < impactUntil then
             neutralizeKnockback()
-        elseif settings.AntiKnockback then
-            rememberSafePosition()
         end
     end)
 
@@ -1870,7 +1837,6 @@ function Player:Create()
             if humanoid then
                 rememberHumanoid(humanoid)
                 applyMovement()
-                lastSafeCFrame = character:GetPivot()
                 if settings.AntiRagdoll then applyAntiRagdoll() end
             end
         end)
@@ -1900,14 +1866,9 @@ function Player:Create()
             if settings.AntiRagdoll then applyAntiRagdoll() else restoreAntiRagdoll() end
         elseif name == "AntiKnockback" then
             settings.AntiKnockback = value == true
-            if settings.AntiKnockback then
-                rememberSafePosition()
-            else
+            if not settings.AntiKnockback then
                 impactUntil = 0
-                returnPending = false
             end
-        elseif name == "KnockbackThreshold" then
-            settings.KnockbackThreshold = math.clamp(tonumber(value) or 55, 20, 150)
         end
     end
 
