@@ -6,6 +6,44 @@ return {
     RuntimeModule = "runtime/Visuals.lua",
     Sections = {
         {
+            Title = "Jogadores",
+            Icon = "users",
+            Controls = {
+                {
+                    Kind = "Toggle",
+                    Setting = "PlayerESP",
+                    Id = "visuals_player_esp",
+                    Label = "ESP de jogadores",
+                    Description = "Mostra o nome e as tags confirmadas abaixo de cada jogador.",
+                    Default = false,
+                },
+                {
+                    Kind = "Toggle",
+                    Setting = "PlayerESPTeams",
+                    Id = "visuals_player_teams",
+                    Label = "Tags de time",
+                    Description = "Usa a cor do Team ou do atributo HideNSeek_Team.",
+                    Default = true,
+                },
+                {
+                    Kind = "Toggle",
+                    Setting = "PlayerESPGlassMaker",
+                    Id = "visuals_player_glassmaker",
+                    Label = "Tag de Glass Maker",
+                    Description = "Exibe uma tag dourada para quem possui GlassMaker=true.",
+                    Default = true,
+                },
+                {
+                    Kind = "Toggle",
+                    Setting = "PlayerESPBaby",
+                    Id = "visuals_player_baby",
+                    Label = "Tag de portador do bebê",
+                    Description = "Exibe uma tag rosa para quem possui HasBaby=true ou BabyBack.",
+                    Default = true,
+                },
+            },
+        },
+        {
             Title = "Ponte de Vidro",
             Icon = "eye",
             Controls = {

@@ -2,7 +2,7 @@
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
-O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip e Full Bright locais. `Visuals` identifica os vidros reais e falsos da ponte. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
+O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip e Full Bright locais. `Visuals` identifica os vidros da ponte e mostra tags coloridas de time, Glass Maker e portador do bebê. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
 
 ## Carregamento
 
@@ -33,7 +33,7 @@ HMenuSchema.lua            contratos das definições declarativas
 categories/                páginas do menu; Player, Teleport e Visuals possuem conteúdo
 runtime/Player.lua         movimento, noclip e iluminação do jogador local
 runtime/Teleport.lua       teleporte do personagem local até um jogador selecionado
-runtime/Visuals.lua        Glass Vision da ponte com destaque sem sobrepor jogadores
+runtime/Visuals.lua        Glass Vision e ESP de jogadores com tags de time/cargo
 theme/wallpapers/          wallpapers preservados dos temas
 dist/HMenu.bundle.lua      arquivo gerado usado no executor
 tools/Build-Bundle.ps1     gerador determinístico do bundle

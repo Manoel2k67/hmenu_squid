@@ -1,5 +1,6 @@
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
 local Visuals = {}
 
@@ -9,19 +10,47 @@ local SAFE_FILL = Color3.fromRGB(35, 255, 105)
 local SAFE_OUTLINE = Color3.fromRGB(0, 190, 65)
 local FAKE_FILL = Color3.fromRGB(255, 55, 55)
 local FAKE_OUTLINE = Color3.fromRGB(205, 0, 0)
+local PLAYER_ESP_NAME = "HMenuPlayerESP"
+local GLASS_MAKER_COLOR = Color3.fromRGB(255, 215, 55)
+local BABY_COLOR = Color3.fromRGB(255, 105, 180)
+local NEUTRAL_COLOR = Color3.fromRGB(190, 200, 220)
+local TEAM_COLORS = {
+    red = Color3.fromRGB(255, 75, 75),
+    blue = Color3.fromRGB(80, 155, 255),
+    green = Color3.fromRGB(70, 225, 115),
+    yellow = Color3.fromRGB(255, 215, 70),
+    orange = Color3.fromRGB(255, 145, 60),
+    pink = Color3.fromRGB(255, 105, 180),
+    purple = Color3.fromRGB(185, 105, 255),
+    guard = Color3.fromRGB(255, 80, 80),
+    player = Color3.fromRGB(95, 190, 255),
+}
+local FALLBACK_TEAM_COLORS = {
+    Color3.fromRGB(95, 190, 255),
+    Color3.fromRGB(105, 225, 135),
+    Color3.fromRGB(255, 180, 70),
+    Color3.fromRGB(195, 115, 255),
+    Color3.fromRGB(255, 105, 170),
+}
 
 function Visuals:Create()
     local connections = {}
     local folderConnections = {}
     local panelConnections = {}
     local highlights = {}
+    local playerEspEntries = {}
     local activeFolder
-    local scanElapsed = 0
+    local glassScanElapsed = 0
+    local playerScanElapsed = 0
     local missingFolderWarned = false
     local destroyed = false
     local settings = {
         GlassESP = false,
         GlassTransparency = 82,
+        PlayerESP = false,
+        PlayerESPTeams = true,
+        PlayerESPGlassMaker = true,
+        PlayerESPBaby = true,
     }
 
     local runtime = {}
@@ -162,12 +191,185 @@ function Visuals:Create()
         end
     end
 
+    local function fallbackTeamColor(name)
+        local normalized = string.lower(tostring(name or ""))
+        if TEAM_COLORS[normalized] then return TEAM_COLORS[normalized] end
+
+        local hash = 0
+        for index = 1, #normalized do hash = hash + string.byte(normalized, index) end
+        return FALLBACK_TEAM_COLORS[(hash % #FALLBACK_TEAM_COLORS) + 1]
+    end
+
+    local function teamInfo(player)
+        local hideNSeekTeam = player:GetAttribute("HideNSeek_Team")
+        if type(hideNSeekTeam) == "string" and hideNSeekTeam ~= "" then
+            return string.upper(hideNSeekTeam), fallbackTeamColor(hideNSeekTeam)
+        end
+
+        local team = player.Team
+        if team then
+            local ok, color = pcall(function() return team.TeamColor.Color end)
+            return string.upper(team.Name), ok and color or fallbackTeamColor(team.Name)
+        end
+        return player.Neutral and "SEM TIME" or "TIME DESCONHECIDO", NEUTRAL_COLOR
+    end
+
+    local function makeText(parent, name, order)
+        local label = Instance.new("TextLabel")
+        label.Name = name
+        label.Size = UDim2.new(1, 0, 0, 15)
+        label.Position = UDim2.fromOffset(0, 18 + ((order - 1) * 15))
+        label.BackgroundTransparency = 1
+        label.BorderSizePixel = 0
+        label.Font = Enum.Font.GothamBold
+        label.TextSize = 11
+        label.TextStrokeColor3 = Color3.fromRGB(12, 14, 20)
+        label.TextStrokeTransparency = 0.22
+        label.TextXAlignment = Enum.TextXAlignment.Center
+        label.Visible = false
+        label.Parent = parent
+        return label
+    end
+
+    local function createPlayerEsp(player, adornee)
+        local previous = adornee:FindFirstChild(PLAYER_ESP_NAME)
+        if previous then previous:Destroy() end
+
+        local gui = Instance.new("BillboardGui")
+        gui.Name = PLAYER_ESP_NAME
+        gui.Adornee = adornee
+        gui.Size = UDim2.fromOffset(230, 68)
+        gui.StudsOffsetWorldSpace = Vector3.new(0, 3.2, 0)
+        gui.AlwaysOnTop = true
+        gui.LightInfluence = 0
+        gui.MaxDistance = 1500
+        gui.ResetOnSpawn = false
+        gui.Parent = adornee
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Name = "PlayerName"
+        nameLabel.Size = UDim2.new(1, 0, 0, 18)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.BorderSizePixel = 0
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextSize = 13
+        nameLabel.TextColor3 = Color3.fromRGB(245, 248, 255)
+        nameLabel.TextStrokeColor3 = Color3.fromRGB(8, 10, 16)
+        nameLabel.TextStrokeTransparency = 0.15
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+        nameLabel.Parent = gui
+
+        return {
+            Gui = gui,
+            Adornee = adornee,
+            Name = nameLabel,
+            Team = makeText(gui, "TeamTag", 1),
+            GlassMaker = makeText(gui, "GlassMakerTag", 2),
+            Baby = makeText(gui, "BabyTag", 3),
+        }
+    end
+
+    local function removePlayerEsp(player)
+        local entry = playerEspEntries[player]
+        if entry then
+            if entry.Gui and entry.Gui.Parent then entry.Gui:Destroy() end
+            playerEspEntries[player] = nil
+        end
+    end
+
+    local function clearPlayerEsp()
+        local players = {}
+        for player in pairs(playerEspEntries) do table.insert(players, player) end
+        for _, player in ipairs(players) do removePlayerEsp(player) end
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            local character = player.Character
+            if character then
+                for _, descendant in ipairs(character:GetDescendants()) do
+                    if descendant:IsA("BillboardGui") and descendant.Name == PLAYER_ESP_NAME then
+                        descendant:Destroy()
+                    end
+                end
+            end
+        end
+    end
+
+    local function setTag(label, visible, value, color, row)
+        label.Visible = visible
+        if not visible then return row end
+        label.Position = UDim2.fromOffset(0, 18 + (row * 15))
+        label.Text = "[" .. value .. "]"
+        label.TextColor3 = color
+        return row + 1
+    end
+
+    local function updatePlayerEsp()
+        if not settings.PlayerESP then
+            clearPlayerEsp()
+            return
+        end
+
+        local present = {}
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= Players.LocalPlayer then
+                present[player] = true
+                local character = player.Character
+                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+                local adornee = character and (character:FindFirstChild("Head")
+                    or character:FindFirstChild("HumanoidRootPart"))
+
+                if not character or not adornee or not humanoid or humanoid.Health <= 0 then
+                    removePlayerEsp(player)
+                else
+                    local entry = playerEspEntries[player]
+                    if not entry or not entry.Gui.Parent or entry.Adornee ~= adornee then
+                        removePlayerEsp(player)
+                        entry = createPlayerEsp(player, adornee)
+                        playerEspEntries[player] = entry
+                    end
+
+                    entry.Name.Text = player.DisplayName ~= player.Name
+                        and (player.DisplayName .. "  (@" .. player.Name .. ")") or player.Name
+
+                    local teamName, teamColor = teamInfo(player)
+                    local glassMaker = player:GetAttribute("GlassMaker") == true
+                    local hasBaby = player:GetAttribute("HasBaby") == true
+                        or character:FindFirstChild("BabyBack", true) ~= nil
+                    local babyType = player:GetAttribute("BabyType")
+                    local babyLabel = type(babyType) == "string" and babyType ~= ""
+                        and ("COM BEBÊ: " .. string.upper(babyType)) or "COM BEBÊ"
+
+                    local row = 0
+                    row = setTag(entry.Team, settings.PlayerESPTeams, "TIME: " .. teamName, teamColor, row)
+                    row = setTag(entry.GlassMaker, settings.PlayerESPGlassMaker and glassMaker,
+                        "GLASS MAKER", GLASS_MAKER_COLOR, row)
+                    setTag(entry.Baby, settings.PlayerESPBaby and hasBaby, babyLabel, BABY_COLOR, row)
+                end
+            end
+        end
+
+        local stale = {}
+        for player in pairs(playerEspEntries) do
+            if not present[player] or not player.Parent then table.insert(stale, player) end
+        end
+        for _, player in ipairs(stale) do removePlayerEsp(player) end
+    end
+
     connect(connections, RunService.Heartbeat, function(deltaTime)
-        if destroyed or not settings.GlassESP then return end
-        scanElapsed = scanElapsed + deltaTime
-        if scanElapsed >= 0.5 then
-            scanElapsed = 0
+        if destroyed then return end
+        if settings.GlassESP then
+            glassScanElapsed = glassScanElapsed + deltaTime
+        end
+        if settings.PlayerESP then
+            playerScanElapsed = playerScanElapsed + deltaTime
+        end
+        if settings.GlassESP and glassScanElapsed >= 0.5 then
+            glassScanElapsed = 0
             refreshFolder()
+        end
+        if settings.PlayerESP and playerScanElapsed >= 0.35 then
+            playerScanElapsed = 0
+            updatePlayerEsp()
         end
     end)
 
@@ -176,7 +378,7 @@ function Visuals:Create()
 
         if name == "GlassESP" then
             settings.GlassESP = value == true
-            scanElapsed = 0
+            glassScanElapsed = 0
             if settings.GlassESP then
                 removeLegacyHighlights()
                 refreshFolder()
@@ -189,6 +391,13 @@ function Visuals:Create()
         elseif name == "GlassTransparency" then
             settings.GlassTransparency = math.clamp(tonumber(value) or 82, 55, 95)
             for part in pairs(highlights) do updatePanel(part) end
+        elseif name == "PlayerESP" then
+            settings.PlayerESP = value == true
+            playerScanElapsed = 0
+            if settings.PlayerESP then updatePlayerEsp() else clearPlayerEsp() end
+        elseif name == "PlayerESPTeams" or name == "PlayerESPGlassMaker" or name == "PlayerESPBaby" then
+            settings[name] = value == true
+            if settings.PlayerESP then updatePlayerEsp() end
         end
     end
 
@@ -197,6 +406,7 @@ function Visuals:Create()
         destroyed = true
         disconnectAll(folderConnections)
         clearPanels()
+        clearPlayerEsp()
         disconnectAll(connections)
         activeFolder = nil
     end
