@@ -2,7 +2,7 @@
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
-O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push e a base de Auto Collect. `Visuals` identifica os vidros da ponte e mostra nomes, vida, auras e tags coloridas de time, Glass Maker e portador do bebê. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
+O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push e Auto Collect. `Combat` oferece expansão de hitbox com alcance configurável e caixa visual sincronizada com as cores do ESP. `Visuals` identifica os vidros da ponte e mostra nomes, vida, auras e tags coloridas de time, Glass Maker e portador do bebê. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
 
 O **Auto Collect** observa `Workspace.BabyPickup` e tenta `Trigger.PickupPrompt` assim que o bebê é derrubado. O módulo nunca teleporta ou move o personagem. Internamente, amplia localmente `MaxActivationDistance` para `1000`, zera `HoldDuration`, desativa linha de visão, aguarda um frame para aplicar as propriedades e chama `fireproximityprompt` em dois modos compatíveis. Como o funcionamento distante já foi confirmado, a opção opera silenciosamente, sem notificações ou logs. O estado ligado/desligado é preservado entre recarregamentos do menu na mesma sessão do executor.
 
@@ -34,6 +34,7 @@ HMenuConfig.lua            versão visual, tamanho, atalhos, cores e categorias
 HMenuSchema.lua            contratos das definições declarativas
 categories/                páginas do menu; Player, Teleport e Visuals possuem conteúdo
 runtime/Player.lua         movimento, proteções e Auto Collect do bebê
+runtime/Combat.lua         hitbox expansível e visual por cor de time
 runtime/Teleport.lua       teleporte do personagem local até um jogador selecionado
 runtime/Visuals.lua        Glass Vision e ESP com aura, nome e tags de time/cargo
 theme/wallpapers/          wallpapers preservados dos temas
