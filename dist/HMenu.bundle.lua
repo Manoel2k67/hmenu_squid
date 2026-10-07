@@ -1489,6 +1489,24 @@ return {
                 },
                 {
                     Kind = "Toggle",
+                    Setting = "PlayerESPAura",
+                    Id = "visuals_player_aura",
+                    Label = "Aura dos jogadores",
+                    Description = "Destaca o personagem através das paredes usando a cor do time.",
+                    Default = true,
+                },
+                {
+                    Kind = "Slider",
+                    Setting = "PlayerESPAuraIntensity",
+                    Id = "visuals_player_aura_intensity",
+                    Label = "Intensidade da aura",
+                    Min = 10,
+                    Max = 100,
+                    Default = 45,
+                    Step = 5,
+                },
+                {
+                    Kind = "Toggle",
                     Setting = "PlayerESPGlassMaker",
                     Id = "visuals_player_glassmaker",
                     Label = "Tag de Glass Maker",
@@ -1855,6 +1873,7 @@ local SAFE_OUTLINE = Color3.fromRGB(0, 190, 65)
 local FAKE_FILL = Color3.fromRGB(255, 55, 55)
 local FAKE_OUTLINE = Color3.fromRGB(205, 0, 0)
 local PLAYER_ESP_NAME = "HMenuPlayerESP"
+local PLAYER_AURA_NAME = "HMenuPlayerAura"
 local GLASS_MAKER_COLOR = Color3.fromRGB(255, 215, 55)
 local BABY_COLOR = Color3.fromRGB(255, 105, 180)
 local NEUTRAL_COLOR = Color3.fromRGB(190, 200, 220)
@@ -1883,6 +1902,7 @@ function Visuals:Create()
     local panelConnections = {}
     local highlights = {}
     local playerEspEntries = {}
+    local humanoidDisplayOriginals = setmetatable({}, { __mode = "k" })
     local activeFolder
     local glassScanElapsed = 0
     local playerScanElapsed = 0
@@ -1893,6 +1913,8 @@ function Visuals:Create()
         GlassTransparency = 82,
         PlayerESP = false,
         PlayerESPTeams = true,
+        PlayerESPAura = true,
+        PlayerESPAuraIntensity = 45,
         PlayerESPGlassMaker = true,
         PlayerESPBaby = true,
     }
@@ -2075,9 +2097,42 @@ function Visuals:Create()
         return label
     end
 
-    local function createPlayerEsp(player, adornee)
+    local function hideNativeDisplay(humanoid)
+        if not humanoidDisplayOriginals[humanoid] then
+            humanoidDisplayOriginals[humanoid] = {
+                DisplayDistanceType = humanoid.DisplayDistanceType,
+                NameDisplayDistance = humanoid.NameDisplayDistance,
+                HealthDisplayDistance = humanoid.HealthDisplayDistance,
+            }
+        end
+        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+    end
+
+    local function restoreNativeDisplay(humanoid)
+        local originals = humanoidDisplayOriginals[humanoid]
+        if not originals then return end
+        if humanoid and humanoid.Parent then
+            humanoid.DisplayDistanceType = originals.DisplayDistanceType
+            humanoid.NameDisplayDistance = originals.NameDisplayDistance
+            humanoid.HealthDisplayDistance = originals.HealthDisplayDistance
+        end
+        humanoidDisplayOriginals[humanoid] = nil
+    end
+
+    local function updateAura(entry, color)
+        local intensity = math.clamp(settings.PlayerESPAuraIntensity, 10, 100) / 100
+        entry.Aura.Enabled = settings.PlayerESPAura
+        entry.Aura.FillColor = color
+        entry.Aura.OutlineColor = color
+        entry.Aura.FillTransparency = math.clamp(1 - (intensity * 0.72), 0.24, 0.93)
+        entry.Aura.OutlineTransparency = math.clamp(1 - intensity, 0.02, 0.88)
+    end
+
+    local function createPlayerEsp(player, adornee, character, humanoid)
         local previous = adornee:FindFirstChild(PLAYER_ESP_NAME)
         if previous then previous:Destroy() end
+        local previousAura = character:FindFirstChild(PLAYER_AURA_NAME)
+        if previousAura then previousAura:Destroy() end
 
         local gui = Instance.new("BillboardGui")
         gui.Name = PLAYER_ESP_NAME
@@ -2103,9 +2158,18 @@ function Visuals:Create()
         nameLabel.TextXAlignment = Enum.TextXAlignment.Center
         nameLabel.Parent = gui
 
+        local aura = Instance.new("Highlight")
+        aura.Name = PLAYER_AURA_NAME
+        aura.Adornee = character
+        aura.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        aura.Parent = character
+
         return {
             Gui = gui,
+            Aura = aura,
             Adornee = adornee,
+            Character = character,
+            Humanoid = humanoid,
             Name = nameLabel,
             Team = makeText(gui, "TeamTag", 1),
             GlassMaker = makeText(gui, "GlassMakerTag", 2),
@@ -2117,6 +2181,8 @@ function Visuals:Create()
         local entry = playerEspEntries[player]
         if entry then
             if entry.Gui and entry.Gui.Parent then entry.Gui:Destroy() end
+            if entry.Aura and entry.Aura.Parent then entry.Aura:Destroy() end
+            restoreNativeDisplay(entry.Humanoid)
             playerEspEntries[player] = nil
         end
     end
@@ -2132,10 +2198,16 @@ function Visuals:Create()
                 for _, descendant in ipairs(character:GetDescendants()) do
                     if descendant:IsA("BillboardGui") and descendant.Name == PLAYER_ESP_NAME then
                         descendant:Destroy()
+                    elseif descendant:IsA("Highlight") and descendant.Name == PLAYER_AURA_NAME then
+                        descendant:Destroy()
                     end
                 end
             end
         end
+
+        local humanoids = {}
+        for humanoid in pairs(humanoidDisplayOriginals) do table.insert(humanoids, humanoid) end
+        for _, humanoid in ipairs(humanoids) do restoreNativeDisplay(humanoid) end
     end
 
     local function setTag(label, visible, value, color, row)
@@ -2166,16 +2238,19 @@ function Visuals:Create()
                     removePlayerEsp(player)
                 else
                     local entry = playerEspEntries[player]
-                    if not entry or not entry.Gui.Parent or entry.Adornee ~= adornee then
+                    if not entry or not entry.Gui.Parent or entry.Adornee ~= adornee
+                        or entry.Character ~= character or entry.Humanoid ~= humanoid then
                         removePlayerEsp(player)
-                        entry = createPlayerEsp(player, adornee)
+                        entry = createPlayerEsp(player, adornee, character, humanoid)
                         playerEspEntries[player] = entry
                     end
 
+                    hideNativeDisplay(humanoid)
                     entry.Name.Text = player.DisplayName ~= player.Name
                         and (player.DisplayName .. "  (@" .. player.Name .. ")") or player.Name
 
                     local teamName, teamColor = teamInfo(player)
+                    updateAura(entry, teamColor)
                     local glassMaker = player:GetAttribute("GlassMaker") == true
                     local hasBaby = player:GetAttribute("HasBaby") == true
                         or character:FindFirstChild("BabyBack", true) ~= nil
@@ -2239,8 +2314,12 @@ function Visuals:Create()
             settings.PlayerESP = value == true
             playerScanElapsed = 0
             if settings.PlayerESP then updatePlayerEsp() else clearPlayerEsp() end
-        elseif name == "PlayerESPTeams" or name == "PlayerESPGlassMaker" or name == "PlayerESPBaby" then
+        elseif name == "PlayerESPTeams" or name == "PlayerESPAura"
+            or name == "PlayerESPGlassMaker" or name == "PlayerESPBaby" then
             settings[name] = value == true
+            if settings.PlayerESP then updatePlayerEsp() end
+        elseif name == "PlayerESPAuraIntensity" then
+            settings.PlayerESPAuraIntensity = math.clamp(tonumber(value) or 45, 10, 100)
             if settings.PlayerESP then updatePlayerEsp() end
         end
     end
