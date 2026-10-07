@@ -63,5 +63,38 @@ return {
                 },
             },
         },
+        {
+            Title = "Proteção",
+            Icon = "shield",
+            Controls = {
+                {
+                    Kind = "Toggle",
+                    Setting = "AntiRagdoll",
+                    Id = "player_anti_ragdoll",
+                    Label = "Anti Ragdoll",
+                    Description = "Impede localmente o estado de queda acionado por toggleRagdoll.",
+                    Default = false,
+                },
+                {
+                    Kind = "Toggle",
+                    Setting = "AntiKnockback",
+                    Id = "player_anti_knockback",
+                    Label = "Anti Push / Knockback",
+                    Description = "Anula o impulso e retorna à última posição segura ao detectar o empurrão.",
+                    Default = false,
+                },
+                {
+                    Kind = "Slider",
+                    Setting = "KnockbackThreshold",
+                    Id = "player_knockback_threshold",
+                    Label = "Limite de impulso",
+                    Description = "Velocidade máxima usada para registrar uma posição como segura.",
+                    Min = 20,
+                    Max = 150,
+                    Default = 55,
+                    Step = 5,
+                },
+            },
+        },
     },
 }

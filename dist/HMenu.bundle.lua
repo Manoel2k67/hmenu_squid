@@ -1387,6 +1387,39 @@ return {
                 },
             },
         },
+        {
+            Title = "Proteção",
+            Icon = "shield",
+            Controls = {
+                {
+                    Kind = "Toggle",
+                    Setting = "AntiRagdoll",
+                    Id = "player_anti_ragdoll",
+                    Label = "Anti Ragdoll",
+                    Description = "Impede localmente o estado de queda acionado por toggleRagdoll.",
+                    Default = false,
+                },
+                {
+                    Kind = "Toggle",
+                    Setting = "AntiKnockback",
+                    Id = "player_anti_knockback",
+                    Label = "Anti Push / Knockback",
+                    Description = "Anula o impulso e retorna à última posição segura ao detectar o empurrão.",
+                    Default = false,
+                },
+                {
+                    Kind = "Slider",
+                    Setting = "KnockbackThreshold",
+                    Id = "player_knockback_threshold",
+                    Label = "Limite de impulso",
+                    Description = "Velocidade máxima usada para registrar uma posição como segura.",
+                    Min = 20,
+                    Max = 150,
+                    Default = 55,
+                    Step = 5,
+                },
+            },
+        },
     },
 }
 end
@@ -1574,6 +1607,7 @@ __modules["runtime/Player.lua"] = function()
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Player = {}
 
@@ -1582,13 +1616,20 @@ function Player:Create()
     local connections = {}
     local humanoidOriginals = setmetatable({}, { __mode = "k" })
     local collisionOriginals = setmetatable({}, { __mode = "k" })
+    local ragdollAttributeOriginals = setmetatable({}, { __mode = "k" })
     local lightingOriginals
+    local lastSafeCFrame
+    local impactUntil = 0
+    local returnPending = false
     local destroyed = false
     local settings = {
         WalkSpeed = nil,
         JumpBoost = nil,
         Noclip = false,
         FullBright = false,
+        AntiRagdoll = false,
+        AntiKnockback = false,
+        KnockbackThreshold = 55,
     }
 
     local runtime = {}
@@ -1608,6 +1649,11 @@ function Player:Create()
         return character and character:FindFirstChildOfClass("Humanoid")
     end
 
+    local function currentRootPart()
+        local character = currentCharacter()
+        return character and character:FindFirstChild("HumanoidRootPart")
+    end
+
     local function rememberHumanoid(humanoid)
         if humanoid and not humanoidOriginals[humanoid] then
             humanoidOriginals[humanoid] = {
@@ -1615,6 +1661,10 @@ function Player:Create()
                 UseJumpPower = humanoid.UseJumpPower,
                 JumpPower = humanoid.JumpPower,
                 JumpHeight = humanoid.JumpHeight,
+                PlatformStand = humanoid.PlatformStand,
+                AutoRotate = humanoid.AutoRotate,
+                RagdollEnabled = humanoid:GetStateEnabled(Enum.HumanoidStateType.Ragdoll),
+                FallingDownEnabled = humanoid:GetStateEnabled(Enum.HumanoidStateType.FallingDown),
             }
         end
         return humanoid and humanoidOriginals[humanoid]
@@ -1690,11 +1740,127 @@ function Player:Create()
         lightingOriginals = nil
     end
 
+    local function rememberRagdollAttribute(character)
+        if character and not ragdollAttributeOriginals[character] then
+            local value = character:GetAttribute("RAGDOLL_FORCE_DISABLE")
+            ragdollAttributeOriginals[character] = {
+                HadValue = value ~= nil,
+                Value = value,
+            }
+        end
+    end
+
+    local function applyAntiRagdoll()
+        local character = currentCharacter()
+        local humanoid = currentHumanoid()
+        if not character or not humanoid or humanoid.Health <= 0 then return end
+
+        rememberRagdollAttribute(character)
+        rememberHumanoid(humanoid)
+        character:SetAttribute("RAGDOLL_FORCE_DISABLE", true)
+        humanoid.PlatformStand = false
+        humanoid.AutoRotate = true
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+        humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+
+        local state = humanoid:GetState()
+        if state == Enum.HumanoidStateType.Ragdoll
+            or state == Enum.HumanoidStateType.FallingDown
+            or state == Enum.HumanoidStateType.Physics then
+            humanoid.Sit = false
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+    end
+
+    local function restoreAntiRagdoll()
+        for humanoid, originals in pairs(humanoidOriginals) do
+            if humanoid and humanoid.Parent then
+                humanoid.PlatformStand = originals.PlatformStand
+                humanoid.AutoRotate = originals.AutoRotate
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, originals.RagdollEnabled)
+                humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, originals.FallingDownEnabled)
+            end
+        end
+
+        for character, original in pairs(ragdollAttributeOriginals) do
+            if character and character.Parent then
+                if original.HadValue then
+                    character:SetAttribute("RAGDOLL_FORCE_DISABLE", original.Value)
+                else
+                    character:SetAttribute("RAGDOLL_FORCE_DISABLE", nil)
+                end
+            end
+            ragdollAttributeOriginals[character] = nil
+        end
+    end
+
+    local function rememberSafePosition()
+        local humanoid = currentHumanoid()
+        local rootPart = currentRootPart()
+        if not humanoid or not rootPart or humanoid.Health <= 0 then return end
+        if humanoid.FloorMaterial == Enum.Material.Air then return end
+        if rootPart.AssemblyLinearVelocity.Magnitude > settings.KnockbackThreshold then return end
+        lastSafeCFrame = rootPart.CFrame
+    end
+
+    local function neutralizeKnockback()
+        local character = currentCharacter()
+        local rootPart = currentRootPart()
+        if not character or not rootPart then return end
+
+        rootPart.AssemblyLinearVelocity = Vector3.zero
+        rootPart.AssemblyAngularVelocity = Vector3.zero
+        if returnPending and lastSafeCFrame then
+            character:PivotTo(lastSafeCFrame)
+            returnPending = false
+        end
+    end
+
+    local function beginImpactWindow(duration)
+        if not settings.AntiKnockback then return end
+        impactUntil = math.max(impactUntil, os.clock() + math.clamp(tonumber(duration) or 0.75, 0.25, 3))
+        returnPending = true
+        neutralizeKnockback()
+        task.defer(function()
+            if not destroyed and settings.AntiKnockback then neutralizeKnockback() end
+        end)
+    end
+
+    local function isLocalCharacter(value)
+        return value == nil or value == currentCharacter()
+    end
+
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    local movementRemote = remotes and remotes:FindFirstChild("PlayerMovementClientSide")
+    if movementRemote and movementRemote:IsA("RemoteEvent") then
+        connect(movementRemote.OnClientEvent, function(action, target, duration)
+            if destroyed then return end
+
+            if action == "impactCamShake" then
+                beginImpactWindow(0.75)
+            elseif action == "toggleRagdoll" and isLocalCharacter(target) then
+                if settings.AntiRagdoll then
+                    applyAntiRagdoll()
+                    task.defer(function()
+                        if not destroyed and settings.AntiRagdoll then applyAntiRagdoll() end
+                    end)
+                end
+                beginImpactWindow(duration)
+            end
+        end)
+    end
+
     connect(RunService.Stepped, function()
         if destroyed then return end
         if settings.WalkSpeed ~= nil or settings.JumpBoost ~= nil then applyMovement() end
         if settings.Noclip then applyNoclip() end
         if settings.FullBright then applyFullBright() end
+        if settings.AntiRagdoll then applyAntiRagdoll() end
+        if settings.AntiKnockback and os.clock() < impactUntil then
+            neutralizeKnockback()
+        elseif settings.AntiKnockback then
+            rememberSafePosition()
+        end
     end)
 
     connect(localPlayer.CharacterAdded, function(character)
@@ -1704,6 +1870,8 @@ function Player:Create()
             if humanoid then
                 rememberHumanoid(humanoid)
                 applyMovement()
+                lastSafeCFrame = character:GetPivot()
+                if settings.AntiRagdoll then applyAntiRagdoll() end
             end
         end)
     end)
@@ -1727,6 +1895,19 @@ function Player:Create()
             end
             settings.FullBright = enabled
             if enabled then applyFullBright() else restoreLighting() end
+        elseif name == "AntiRagdoll" then
+            settings.AntiRagdoll = value == true
+            if settings.AntiRagdoll then applyAntiRagdoll() else restoreAntiRagdoll() end
+        elseif name == "AntiKnockback" then
+            settings.AntiKnockback = value == true
+            if settings.AntiKnockback then
+                rememberSafePosition()
+            else
+                impactUntil = 0
+                returnPending = false
+            end
+        elseif name == "KnockbackThreshold" then
+            settings.KnockbackThreshold = math.clamp(tonumber(value) or 55, 20, 150)
         end
     end
 
@@ -1740,6 +1921,7 @@ function Player:Create()
         connections = {}
         restoreCollision()
         restoreLighting()
+        restoreAntiRagdoll()
 
         for humanoid, originals in pairs(humanoidOriginals) do
             if humanoid and humanoid.Parent then
