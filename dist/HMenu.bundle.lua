@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.0"
+Config.Version = "v1.2.1"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1276,7 +1276,7 @@ return {
                     Label = "Alcance da hitbox",
                     Description = "Raio em studs. A caixa usa o dobro deste valor em cada eixo.",
                     Min = 5,
-                    Max = 100,
+                    Max = 500,
                     Default = 15,
                     Step = 1,
                 },
@@ -1788,7 +1788,7 @@ function Combat:Create()
 
         present[root] = true
         rememberRoot(root)
-        local diameter = math.clamp(settings.HitboxRange, 5, 100) * 2
+        local diameter = math.clamp(settings.HitboxRange, 5, 500) * 2
         local size = Vector3.new(diameter, diameter, diameter)
         root.Size = size
         root.Transparency = 1
@@ -1846,7 +1846,7 @@ function Combat:Create()
                 clearHitboxes()
             end
         elseif name == "HitboxRange" then
-            settings.HitboxRange = math.clamp(tonumber(value) or 15, 5, 100)
+            settings.HitboxRange = math.clamp(tonumber(value) or 15, 5, 500)
             if settings.HitboxEnabled then updateHitboxes() end
         elseif name == "HitboxVisible" then
             settings.HitboxVisible = value == true

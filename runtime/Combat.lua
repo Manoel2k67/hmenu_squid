@@ -126,7 +126,7 @@ function Combat:Create()
 
         present[root] = true
         rememberRoot(root)
-        local diameter = math.clamp(settings.HitboxRange, 5, 100) * 2
+        local diameter = math.clamp(settings.HitboxRange, 5, 500) * 2
         local size = Vector3.new(diameter, diameter, diameter)
         root.Size = size
         root.Transparency = 1
@@ -184,7 +184,7 @@ function Combat:Create()
                 clearHitboxes()
             end
         elseif name == "HitboxRange" then
-            settings.HitboxRange = math.clamp(tonumber(value) or 15, 5, 100)
+            settings.HitboxRange = math.clamp(tonumber(value) or 15, 5, 500)
             if settings.HitboxEnabled then updateHitboxes() end
         elseif name == "HitboxVisible" then
             settings.HitboxVisible = value == true

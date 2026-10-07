@@ -24,7 +24,7 @@ return {
                     Label = "Alcance da hitbox",
                     Description = "Raio em studs. A caixa usa o dobro deste valor em cada eixo.",
                     Min = 5,
-                    Max = 100,
+                    Max = 500,
                     Default = 15,
                     Step = 1,
                 },
