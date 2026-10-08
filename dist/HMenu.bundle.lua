@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.3"
+Config.Version = "v1.2.4"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1455,7 +1455,7 @@ return {
             },
         },
         {
-            Title = "Auto Collect",
+            Title = "Auto",
             Icon = "farm",
             Controls = {
                 {
@@ -1465,6 +1465,14 @@ return {
                     Label = "Auto coletar bebê",
                     Description = "Quando Workspace.BabyPickup aparecer, tenta PickupPrompt imediatamente. Nunca usa teleporte.",
                     Default = rawget(_G, "__HMENU_AUTO_COLLECT_BABY") == true,
+                },
+                {
+                    Kind = "Toggle",
+                    Setting = "AutoCompleteHoneycomb",
+                    Id = "player_auto_complete_honeycomb",
+                    Label = "Auto Complete Honeycomb",
+                    Description = "Arrasta o mouse automaticamente pelo caminho seguro do seu biscoito, independente da forma.",
+                    Default = rawget(_G, "__HMENU_AUTO_COMPLETE_HONEYCOMB") == true,
                 },
             },
         },
@@ -1883,12 +1891,15 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Player = {}
 local AUTO_COLLECT_BABY_KEY = "__HMENU_AUTO_COLLECT_BABY"
+local AUTO_COMPLETE_HONEYCOMB_KEY = "__HMENU_AUTO_COMPLETE_HONEYCOMB"
 
-function Player:Create()
+function Player:Create(options)
+    options = options or {}
     local localPlayer = Players.LocalPlayer
     local connections = {}
     local humanoidOriginals = setmetatable({}, { __mode = "k" })
@@ -1905,9 +1916,13 @@ function Player:Create()
         AntiRagdoll = false,
         AntiKnockback = false,
         AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
+        AutoCompleteHoneycomb = rawget(_G, AUTO_COMPLETE_HONEYCOMB_KEY) == true,
     }
     local attemptedBabyModels = setmetatable({}, { __mode = "k" })
     local babyAttemptGeneration = 0
+    local attemptedHoneycombModels = setmetatable({}, { __mode = "k" })
+    local honeycombAttemptGeneration = 0
+    local honeycombMousePressed = false
 
     local runtime = {}
 
@@ -2022,6 +2037,281 @@ function Player:Create()
     local function currentBabyModel()
         local model = Workspace:FindFirstChild("BabyPickup")
         return model and model:IsA("Model") and model or nil
+    end
+
+    local function executorFunction(name)
+        local environment = _G
+        if type(getgenv) == "function" then
+            local ok, result = pcall(getgenv)
+            if ok and type(result) == "table" then environment = result end
+        end
+        local value = rawget(environment, name)
+        return type(value) == "function" and value or nil
+    end
+
+    local function virtualInputManager()
+        local ok, service = pcall(game.GetService, game, "VirtualInputManager")
+        return ok and service or nil
+    end
+
+    local function moveMouse(position)
+        local x = math.floor(position.X + 0.5)
+        local y = math.floor(position.Y + 0.5)
+        local moveAbsolute = executorFunction("mousemoveabs")
+        if moveAbsolute then
+            return pcall(moveAbsolute, x, y)
+        end
+
+        local moveRelative = executorFunction("mousemoverel")
+        if moveRelative then
+            local current = UserInputService:GetMouseLocation()
+            return pcall(moveRelative, x - current.X, y - current.Y)
+        end
+
+        local manager = virtualInputManager()
+        if manager then
+            return pcall(function()
+                manager:SendMouseMoveEvent(x, y, game)
+            end)
+        end
+        return false
+    end
+
+    local function setHoneycombMousePressed(pressed, position)
+        local functionName = pressed and "mouse1press" or "mouse1release"
+        local executorInput = executorFunction(functionName)
+        if executorInput then
+            local ok = pcall(executorInput)
+            if ok then
+                honeycombMousePressed = pressed
+                return true
+            end
+        end
+
+        local manager = virtualInputManager()
+        if manager then
+            local x = math.floor(position.X + 0.5)
+            local y = math.floor(position.Y + 0.5)
+            local ok = pcall(function()
+                manager:SendMouseButtonEvent(x, y, 0, pressed, game, 0)
+            end)
+            if ok then
+                honeycombMousePressed = pressed
+                return true
+            end
+        end
+        return false
+    end
+
+    local function releaseHoneycombMouse()
+        if not honeycombMousePressed then return end
+        setHoneycombMousePressed(false, UserInputService:GetMouseLocation())
+        honeycombMousePressed = false
+    end
+
+    local function currentHoneycombShape()
+        local map = Workspace:FindFirstChild("Map")
+        local honeycomb = map and map:FindFirstChild("Honeycomb")
+        local shapes = honeycomb and honeycomb:FindFirstChild("Shapes")
+        local shape = shapes and shapes:FindFirstChild(localPlayer.Name)
+        if not shape then return nil, nil end
+
+        return shape, shape:FindFirstChild("Path")
+    end
+
+    local function projectedPathPoints(path)
+        local camera = Workspace.CurrentCamera
+        if not camera or not path then return {} end
+
+        local points = {}
+        for _, descendant in ipairs(path:GetDescendants()) do
+            if descendant:IsA("BasePart") then
+                local screenPoint, visible = camera:WorldToScreenPoint(descendant.Position)
+                if visible and screenPoint.Z > 0 then
+                    table.insert(points, {
+                        Part = descendant,
+                        Screen = Vector2.new(screenPoint.X, screenPoint.Y),
+                    })
+                end
+            end
+        end
+        return points
+    end
+
+    local function routeScore(route)
+        local total = 0
+        local longest = 0
+        for index = 2, #route do
+            local distance = (route[index].Screen - route[index - 1].Screen).Magnitude
+            total = total + distance
+            longest = math.max(longest, distance)
+        end
+        return longest, total
+    end
+
+    local function greedyRoute(points, firstIndex)
+        local route = {}
+        local used = {}
+        local currentIndex = firstIndex
+
+        while currentIndex do
+            used[currentIndex] = true
+            table.insert(route, points[currentIndex])
+
+            local closestIndex
+            local closestDistance = math.huge
+            for index, point in ipairs(points) do
+                if not used[index] then
+                    local distance = (point.Screen - points[currentIndex].Screen).Magnitude
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        closestIndex = index
+                    end
+                end
+            end
+            currentIndex = closestIndex
+        end
+        return route
+    end
+
+    local function orderedPath(points)
+        if #points < 2 then return points end
+
+        -- Open shapes have an endpoint whose second-nearest neighbour is much
+        -- farther away. Closed shapes fall back to the point nearest the mouse.
+        local mousePosition = UserInputService:GetMouseLocation()
+        local startIndex = 1
+        local bestEndpointRatio = 0
+        local closestToMouse = math.huge
+        local closestToMouseIndex = 1
+
+        for index, point in ipairs(points) do
+            local nearest = math.huge
+            local secondNearest = math.huge
+            for otherIndex, other in ipairs(points) do
+                if index ~= otherIndex then
+                    local distance = (point.Screen - other.Screen).Magnitude
+                    if distance < nearest then
+                        secondNearest = nearest
+                        nearest = distance
+                    elseif distance < secondNearest then
+                        secondNearest = distance
+                    end
+                end
+            end
+
+            if nearest > 0 and secondNearest < math.huge then
+                local ratio = secondNearest / nearest
+                if ratio > bestEndpointRatio then
+                    bestEndpointRatio = ratio
+                    startIndex = index
+                end
+            end
+
+            local mouseDistance = (point.Screen - mousePosition).Magnitude
+            if mouseDistance < closestToMouse then
+                closestToMouse = mouseDistance
+                closestToMouseIndex = index
+            end
+        end
+
+        if bestEndpointRatio < 1.65 then startIndex = closestToMouseIndex end
+
+        local greedy = greedyRoute(points, startIndex)
+        local naturalLongest, naturalTotal = routeScore(points)
+        local greedyLongest, greedyTotal = routeScore(greedy)
+        if naturalLongest <= greedyLongest * 1.15 and naturalTotal <= greedyTotal * 1.35 then
+            return points
+        end
+        return greedy
+    end
+
+    local function menuScreenGui()
+        local parent = options and options.Parent
+        local gui = parent and parent:FindFirstChild("HMenu")
+        return gui and gui:IsA("ScreenGui") and gui or nil
+    end
+
+    local function traceHoneycomb(shape, path, generation)
+        local points = projectedPathPoints(path)
+        if #points < 8 then return false end
+
+        local route = orderedPath(points)
+        local originalMousePosition = UserInputService:GetMouseLocation()
+        local menuGui = menuScreenGui()
+        local menuWasEnabled = menuGui and menuGui.Enabled
+        if menuGui then menuGui.Enabled = false end
+
+        local function stillValid()
+            return not destroyed
+                and settings.AutoCompleteHoneycomb
+                and generation == honeycombAttemptGeneration
+                and shape.Parent ~= nil
+                and path.Parent == shape
+        end
+
+        local success = false
+        local ok, failure = pcall(function()
+            if not moveMouse(route[1].Screen) then
+                error("executor sem suporte para mover o mouse")
+            end
+            RunService.RenderStepped:Wait()
+            if not stillValid() then return end
+            if not setHoneycombMousePressed(true, route[1].Screen) then
+                error("executor sem suporte para pressionar o mouse")
+            end
+
+            for index = 2, #route do
+                if not stillValid() then return end
+                local from = route[index - 1].Screen
+                local target = route[index].Screen
+                local distance = (target - from).Magnitude
+                local steps = math.max(1, math.ceil(distance / 2))
+                for step = 1, steps do
+                    if not stillValid() then return end
+                    local position = from:Lerp(target, step / steps)
+                    if not moveMouse(position) then
+                        error("falha ao mover o mouse")
+                    end
+                    RunService.RenderStepped:Wait()
+                end
+            end
+            success = stillValid()
+            task.wait(0.08)
+        end)
+
+        releaseHoneycombMouse()
+        moveMouse(originalMousePosition)
+        if menuGui and menuGui.Parent then menuGui.Enabled = menuWasEnabled end
+        if not ok then
+            warn("[HMenu] Auto Complete Honeycomb falhou:", failure)
+            return false
+        end
+        return success
+    end
+
+    local function startHoneycombMonitor()
+        honeycombAttemptGeneration = honeycombAttemptGeneration + 1
+        local generation = honeycombAttemptGeneration
+        attemptedHoneycombModels = setmetatable({}, { __mode = "k" })
+
+        task.spawn(function()
+            while not destroyed
+                and settings.AutoCompleteHoneycomb
+                and generation == honeycombAttemptGeneration do
+                local shape, path = currentHoneycombShape()
+                local cuttingStarted = localPlayer:GetAttribute("HONEYCOMB_START_CUTTING") == true
+                if cuttingStarted and shape and path and not attemptedHoneycombModels[shape] then
+                    local points = projectedPathPoints(path)
+                    if #points >= 8 then
+                        attemptedHoneycombModels[shape] = true
+                        traceHoneycomb(shape, path, generation)
+                    end
+                end
+                task.wait(0.2)
+            end
+            releaseHoneycombMouse()
+        end)
     end
 
     local function rememberHumanoid(humanoid)
@@ -2247,6 +2537,10 @@ function Player:Create()
         end)
     end
 
+    if settings.AutoCompleteHoneycomb then
+        startHoneycombMonitor()
+    end
+
     function runtime:Set(name, value)
         if destroyed then return end
 
@@ -2282,6 +2576,12 @@ function Player:Create()
                 local model = currentBabyModel()
                 if model then attemptBabyPickup(model, false) end
             end
+        elseif name == "AutoCompleteHoneycomb" then
+            settings.AutoCompleteHoneycomb = value == true
+            rawset(_G, AUTO_COMPLETE_HONEYCOMB_KEY, settings.AutoCompleteHoneycomb)
+            honeycombAttemptGeneration = honeycombAttemptGeneration + 1
+            releaseHoneycombMouse()
+            if settings.AutoCompleteHoneycomb then startHoneycombMonitor() end
         end
     end
 
@@ -2293,6 +2593,8 @@ function Player:Create()
             pcall(function() connection:Disconnect() end)
         end
         connections = {}
+        honeycombAttemptGeneration = honeycombAttemptGeneration + 1
+        releaseHoneycombMouse()
         restoreCollision()
         restoreLighting()
         restoreAntiRagdoll()
