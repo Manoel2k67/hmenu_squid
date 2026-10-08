@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.7"
+Config.Version = "v1.2.8"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1274,10 +1274,10 @@ return {
                     Setting = "HitboxRange",
                     Id = "combat_hitbox_range",
                     Label = "Alcance da hitbox",
-                    Description = "Raio em studs. A caixa usa o dobro deste valor em cada eixo.",
+                    Description = "Raio em studs, limitado à tolerância de dano do servidor.",
                     Min = 5,
-                    Max = 500,
-                    Default = 15,
+                    Max = 9,
+                    Default = 8,
                     Step = 1,
                 },
                 {
@@ -1285,7 +1285,7 @@ return {
                     Setting = "HitboxVisible",
                     Id = "combat_hitbox_visible",
                     Label = "Mostrar área da hitbox",
-                    Description = "Exibe a caixa com a mesma cor de time usada pelo ESP.",
+                    Description = "Exibe a esfera consultável com a mesma cor de time usada pelo ESP.",
                     Default = true,
                 },
                 {
@@ -1680,6 +1680,8 @@ local RunService = game:GetService("RunService")
 local Combat = {}
 
 local HITBOX_VISUAL_NAME = "HMenuCombatHitbox"
+-- Keep the local impact surface inside the distance accepted by the server.
+local MAX_HITBOX_RADIUS = 9
 local NEUTRAL_COLOR = Color3.fromRGB(190, 200, 220)
 local TEAM_COLORS = {
     red = Color3.fromRGB(255, 75, 75),
@@ -1732,7 +1734,7 @@ function Combat:Create()
     local scanElapsed = 0
     local settings = {
         HitboxEnabled = false,
-        HitboxRange = 15,
+        HitboxRange = 8,
         HitboxVisible = true,
         HitboxTransparency = 78,
     }
@@ -1753,6 +1755,7 @@ function Combat:Create()
                 CanCollide = root.CanCollide,
                 CanTouch = root.CanTouch,
                 CanQuery = root.CanQuery,
+                Shape = root:IsA("Part") and root.Shape or nil,
             }
         end
         return root and originals[root]
@@ -1765,7 +1768,10 @@ function Combat:Create()
             visuals[root] = nil
         end
         local legacy = root and root:FindFirstChild(HITBOX_VISUAL_NAME)
-        if legacy and legacy:IsA("BoxHandleAdornment") then legacy:Destroy() end
+        if legacy and (legacy:IsA("SphereHandleAdornment")
+            or legacy:IsA("BoxHandleAdornment")) then
+            legacy:Destroy()
+        end
     end
 
     local function restoreRoot(root)
@@ -1777,13 +1783,14 @@ function Combat:Create()
             root.CanCollide = original.CanCollide
             root.CanTouch = original.CanTouch
             root.CanQuery = original.CanQuery
+            if original.Shape and root:IsA("Part") then root.Shape = original.Shape end
         end
         originals[root] = nil
     end
 
     local function createVisual(root)
         removeVisual(root)
-        local visual = Instance.new("BoxHandleAdornment")
+        local visual = Instance.new("SphereHandleAdornment")
         visual.Name = HITBOX_VISUAL_NAME
         visual.Adornee = root
         visual.AlwaysOnTop = true
@@ -1802,9 +1809,11 @@ function Combat:Create()
 
         present[root] = true
         rememberRoot(root)
-        local diameter = math.clamp(settings.HitboxRange, 5, 500) * 2
+        local radius = math.clamp(settings.HitboxRange, 5, MAX_HITBOX_RADIUS)
+        local diameter = radius * 2
         local size = Vector3.new(diameter, diameter, diameter)
         root.Size = size
+        if root:IsA("Part") then root.Shape = Enum.PartType.Ball end
         root.Transparency = 1
         root.CanCollide = false
         root.CanTouch = true
@@ -1812,7 +1821,7 @@ function Combat:Create()
 
         local visual = visuals[root]
         if not visual or not visual.Parent then visual = createVisual(root) end
-        visual.Size = size
+        visual.Radius = radius
         visual.Color3 = teamColor(player)
         visual.Transparency = math.clamp(settings.HitboxTransparency / 100, 0.2, 0.95)
         visual.Visible = settings.HitboxVisible
@@ -1863,7 +1872,7 @@ function Combat:Create()
                 clearHitboxes()
             end
         elseif name == "HitboxRange" then
-            settings.HitboxRange = math.clamp(tonumber(value) or 15, 5, 500)
+            settings.HitboxRange = math.clamp(tonumber(value) or 8, 5, MAX_HITBOX_RADIUS)
             if settings.HitboxEnabled then updateHitboxes() end
         elseif name == "HitboxVisible" then
             settings.HitboxVisible = value == true
