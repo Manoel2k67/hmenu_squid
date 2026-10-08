@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.1"
+Config.Version = "v1.2.2"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1258,6 +1258,20 @@ return {
     RuntimeModule = "runtime/Combat.lua",
     Sections = {
         {
+            Title = "Ataques",
+            Icon = "fire",
+            Controls = {
+                {
+                    Kind = "Toggle",
+                    Setting = "NoCooldown",
+                    Id = "combat_no_cooldown",
+                    Label = "Sem recarga",
+                    Description = "Remove esperas locais de golpes e ferramentas. Recargas validadas pelo servidor podem continuar ativas.",
+                    Default = false,
+                },
+            },
+        },
+        {
             Title = "Hitbox",
             Icon = "target",
             Controls = {
@@ -1686,6 +1700,42 @@ local FALLBACK_TEAM_COLORS = {
     Color3.fromRGB(255, 105, 170),
 }
 
+local COOLDOWN_NAMES = {
+    attackdelay = true,
+    attackwait = true,
+    debouncetime = true,
+    hitdelay = true,
+    reloadtime = true,
+    swingdelay = true,
+    swingtime = true,
+    usecooldown = true,
+}
+
+local READY_NAMES = {
+    canattack = true,
+    canhit = true,
+    canuse = true,
+    ready = true,
+}
+
+local function normalizedName(name)
+    return string.lower(tostring(name or "")):gsub("[^%w]", "")
+end
+
+local function cooldownValue(name, value)
+    local normalized = normalizedName(name)
+    local isCooldown = string.find(normalized, "cooldown", 1, true) ~= nil
+        or string.find(normalized, "debounce", 1, true) ~= nil
+        or COOLDOWN_NAMES[normalized] == true
+    if isCooldown then
+        if type(value) == "number" then return 0 end
+        if type(value) == "boolean" then return false end
+    elseif READY_NAMES[normalized] and type(value) == "boolean" then
+        return true
+    end
+    return nil
+end
+
 local function fallbackTeamColor(name)
     local normalized = string.lower(tostring(name or ""))
     if TEAM_COLORS[normalized] then return TEAM_COLORS[normalized] end
@@ -1714,9 +1764,13 @@ function Combat:Create()
     local connections = {}
     local originals = setmetatable({}, { __mode = "k" })
     local visuals = setmetatable({}, { __mode = "k" })
+    local originalCooldownValues = setmetatable({}, { __mode = "k" })
+    local originalCooldownAttributes = setmetatable({}, { __mode = "k" })
     local destroyed = false
     local scanElapsed = 0
+    local cooldownElapsed = 0
     local settings = {
+        NoCooldown = false,
         HitboxEnabled = false,
         HitboxRange = 15,
         HitboxVisible = true,
@@ -1729,6 +1783,79 @@ function Combat:Create()
         local connection = signal:Connect(callback)
         table.insert(connections, connection)
         return connection
+    end
+
+    local function patchAttributes(object)
+        local ok, attributes = pcall(function() return object:GetAttributes() end)
+        if not ok then return end
+
+        for name, value in pairs(attributes) do
+            local replacement = cooldownValue(name, value)
+            if replacement ~= nil and value ~= replacement then
+                local saved = originalCooldownAttributes[object]
+                if not saved then
+                    saved = {}
+                    originalCooldownAttributes[object] = saved
+                end
+                if saved[name] == nil then saved[name] = value end
+                pcall(function() object:SetAttribute(name, replacement) end)
+            end
+        end
+    end
+
+    local function patchValueObject(object)
+        local supported = object:IsA("NumberValue") or object:IsA("IntValue") or object:IsA("BoolValue")
+        if not supported then return end
+
+        local replacement = cooldownValue(object.Name, object.Value)
+        if replacement == nil or object.Value == replacement then return end
+        if originalCooldownValues[object] == nil then originalCooldownValues[object] = object.Value end
+        pcall(function() object.Value = replacement end)
+    end
+
+    local function patchObject(object)
+        patchAttributes(object)
+        patchValueObject(object)
+    end
+
+    local function patchTool(tool)
+        if not tool:IsA("Tool") then return end
+        pcall(function() tool.Enabled = true end)
+        patchObject(tool)
+        for _, object in ipairs(tool:GetDescendants()) do patchObject(object) end
+    end
+
+    local function applyNoCooldown()
+        if not settings.NoCooldown then return end
+        patchAttributes(localPlayer)
+
+        local backpack = localPlayer:FindFirstChildOfClass("Backpack")
+        if backpack then
+            patchAttributes(backpack)
+            for _, child in ipairs(backpack:GetChildren()) do patchTool(child) end
+        end
+
+        local character = localPlayer.Character
+        if character then
+            patchAttributes(character)
+            for _, child in ipairs(character:GetChildren()) do patchTool(child) end
+        end
+    end
+
+    local function restoreCooldownValues()
+        for object, value in pairs(originalCooldownValues) do
+            if object.Parent then pcall(function() object.Value = value end) end
+        end
+        originalCooldownValues = setmetatable({}, { __mode = "k" })
+
+        for object, attributes in pairs(originalCooldownAttributes) do
+            if object.Parent then
+                for name, value in pairs(attributes) do
+                    pcall(function() object:SetAttribute(name, value) end)
+                end
+            end
+        end
+        originalCooldownAttributes = setmetatable({}, { __mode = "k" })
     end
 
     local function rememberRoot(root)
@@ -1829,16 +1956,34 @@ function Combat:Create()
     end
 
     connect(RunService.Heartbeat, function(deltaTime)
-        if destroyed or not settings.HitboxEnabled then return end
-        scanElapsed = scanElapsed + deltaTime
-        if scanElapsed < 0.1 then return end
-        scanElapsed = 0
-        updateHitboxes()
+        if destroyed then return end
+        if settings.HitboxEnabled then
+            scanElapsed = scanElapsed + deltaTime
+            if scanElapsed >= 0.1 then
+                scanElapsed = 0
+                updateHitboxes()
+            end
+        end
+        if settings.NoCooldown then
+            cooldownElapsed = cooldownElapsed + deltaTime
+            if cooldownElapsed >= 0.05 then
+                cooldownElapsed = 0
+                applyNoCooldown()
+            end
+        end
     end)
 
     function runtime:Set(name, value)
         if destroyed then return end
-        if name == "HitboxEnabled" then
+        if name == "NoCooldown" then
+            settings.NoCooldown = value == true
+            cooldownElapsed = 0
+            if settings.NoCooldown then
+                applyNoCooldown()
+            else
+                restoreCooldownValues()
+            end
+        elseif name == "HitboxEnabled" then
             settings.HitboxEnabled = value == true
             if settings.HitboxEnabled then
                 updateHitboxes()
@@ -1864,6 +2009,7 @@ function Combat:Create()
             pcall(function() connection:Disconnect() end)
         end
         connections = {}
+        restoreCooldownValues()
         clearHitboxes()
     end
 
