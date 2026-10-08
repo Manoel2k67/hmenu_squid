@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.4"
+Config.Version = "v1.2.5"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -2113,10 +2113,57 @@ function Player:Create(options)
         local map = Workspace:FindFirstChild("Map")
         local honeycomb = map and map:FindFirstChild("Honeycomb")
         local shapes = honeycomb and honeycomb:FindFirstChild("Shapes")
-        local shape = shapes and shapes:FindFirstChild(localPlayer.Name)
-        if not shape then return nil, nil end
+        if not shapes then return nil, nil end
 
-        return shape, shape:FindFirstChild("Path")
+        local shape = shapes:FindFirstChild(localPlayer.Name)
+        if shape then return shape, shape:FindFirstChild("Path") end
+
+        -- Some rounds remove the local ownership attributes before the cookie
+        -- view closes. In that case, use the shape that actually occupies the
+        -- current camera instead of selecting another player's distant cookie.
+        local camera = Workspace.CurrentCamera
+        if not camera then return nil, nil end
+
+        local viewportCenter = camera.ViewportSize / 2
+        local bestShape
+        local bestPath
+        local bestScore = -math.huge
+        for _, candidate in ipairs(shapes:GetChildren()) do
+            local candidatePath = candidate:FindFirstChild("Path")
+            if candidatePath then
+                local visibleCount = 0
+                local minimum = Vector2.new(math.huge, math.huge)
+                local maximum = Vector2.new(-math.huge, -math.huge)
+                local centerTotal = Vector2.zero
+                for _, descendant in ipairs(candidatePath:GetDescendants()) do
+                    if descendant:IsA("BasePart") then
+                        local projected, visible = camera:WorldToScreenPoint(descendant.Position)
+                        if visible and projected.Z > 0 then
+                            local point = Vector2.new(projected.X, projected.Y)
+                            visibleCount = visibleCount + 1
+                            centerTotal = centerTotal + point
+                            minimum = Vector2.new(math.min(minimum.X, point.X), math.min(minimum.Y, point.Y))
+                            maximum = Vector2.new(math.max(maximum.X, point.X), math.max(maximum.Y, point.Y))
+                        end
+                    end
+                end
+
+                if visibleCount >= 40 then
+                    local size = maximum - minimum
+                    local area = size.X * size.Y
+                    local center = centerTotal / visibleCount
+                    local centerDistance = (center - viewportCenter).Magnitude
+                    local score = area + visibleCount * 100 - centerDistance * 10
+                    if area >= 2500 and score > bestScore then
+                        bestScore = score
+                        bestShape = candidate
+                        bestPath = candidatePath
+                    end
+                end
+            end
+        end
+
+        return bestShape, bestPath
     end
 
     local function projectedPathPoints(path)
@@ -2174,56 +2221,100 @@ function Player:Create(options)
         return route
     end
 
-    local function orderedPath(points)
-        if #points < 2 then return points end
-
-        -- Open shapes have an endpoint whose second-nearest neighbour is much
-        -- farther away. Closed shapes fall back to the point nearest the mouse.
-        local mousePosition = UserInputService:GetMouseLocation()
-        local startIndex = 1
-        local bestEndpointRatio = 0
-        local closestToMouse = math.huge
-        local closestToMouseIndex = 1
-
-        for index, point in ipairs(points) do
-            local nearest = math.huge
-            local secondNearest = math.huge
-            for otherIndex, other in ipairs(points) do
-                if index ~= otherIndex then
-                    local distance = (point.Screen - other.Screen).Magnitude
-                    if distance < nearest then
-                        secondNearest = nearest
-                        nearest = distance
-                    elseif distance < secondNearest then
-                        secondNearest = distance
+    local function honeycombStartIndex(shape, path, points)
+        local camera = Workspace.CurrentCamera
+        if camera then
+            local bestMarkerDistance = math.huge
+            local markerPosition
+            for _, descendant in ipairs(shape:GetDescendants()) do
+                if descendant:IsA("BasePart") and not descendant:IsDescendantOf(path) then
+                    local color = descendant.Color
+                    local looksGreen = color.G > 0.65 and color.G > color.R * 1.25 and color.G > color.B * 1.15
+                    if looksGreen then
+                        local projected, visible = camera:WorldToScreenPoint(descendant.Position)
+                        if visible and projected.Z > 0 then
+                            local position = Vector2.new(projected.X, projected.Y)
+                            local distance = (position - camera.ViewportSize / 2).Magnitude
+                            if distance < bestMarkerDistance then
+                                bestMarkerDistance = distance
+                                markerPosition = position
+                            end
+                        end
                     end
                 end
             end
 
-            if nearest > 0 and secondNearest < math.huge then
-                local ratio = secondNearest / nearest
-                if ratio > bestEndpointRatio then
-                    bestEndpointRatio = ratio
-                    startIndex = index
+            if markerPosition then
+                local closestIndex = 1
+                local closestDistance = math.huge
+                for index, point in ipairs(points) do
+                    local distance = (point.Screen - markerPosition).Magnitude
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        closestIndex = index
+                    end
                 end
-            end
-
-            local mouseDistance = (point.Screen - mousePosition).Magnitude
-            if mouseDistance < closestToMouse then
-                closestToMouse = mouseDistance
-                closestToMouseIndex = index
+                return closestIndex
             end
         end
 
-        if bestEndpointRatio < 1.65 then startIndex = closestToMouseIndex end
+        -- The visible start arrow is on the right side in every observed
+        -- Honeycomb shape. This is safer than using the menu cursor position.
+        local rightmostIndex = 1
+        for index = 2, #points do
+            if points[index].Screen.X > points[rightmostIndex].Screen.X then
+                rightmostIndex = index
+            end
+        end
+        return rightmostIndex
+    end
+
+    local function rotateRoute(points, startIndex, reverse)
+        local route = {}
+        for offset = 0, #points - 1 do
+            local index
+            if reverse then
+                index = ((startIndex - offset - 1) % #points) + 1
+            else
+                index = ((startIndex + offset - 1) % #points) + 1
+            end
+            table.insert(route, points[index])
+        end
+        return route
+    end
+
+    local function orderedPath(shape, path, points)
+        if #points < 2 then return points end
+
+        local startIndex = honeycombStartIndex(shape, path, points)
 
         local greedy = greedyRoute(points, startIndex)
-        local naturalLongest, naturalTotal = routeScore(points)
+        local naturalForward = rotateRoute(points, startIndex, false)
+        local naturalReverse = rotateRoute(points, startIndex, true)
+        local forwardLongest, forwardTotal = routeScore(naturalForward)
+        local reverseLongest, reverseTotal = routeScore(naturalReverse)
+        local natural = naturalForward
+        local naturalLongest = forwardLongest
+        local naturalTotal = forwardTotal
+        if reverseLongest < forwardLongest
+            or (reverseLongest == forwardLongest and reverseTotal < forwardTotal) then
+            natural = naturalReverse
+            naturalLongest = reverseLongest
+            naturalTotal = reverseTotal
+        end
         local greedyLongest, greedyTotal = routeScore(greedy)
         if naturalLongest <= greedyLongest * 1.15 and naturalTotal <= greedyTotal * 1.35 then
-            return points
+            return natural
         end
         return greedy
+    end
+
+    local function markHoneycombPathCompleted(path)
+        for _, descendant in ipairs(path:GetDescendants()) do
+            if descendant:IsA("BasePart") and descendant:GetAttribute("Completed") ~= true then
+                pcall(function() descendant:SetAttribute("Completed", true) end)
+            end
+        end
     end
 
     local function menuScreenGui()
@@ -2236,7 +2327,7 @@ function Player:Create(options)
         local points = projectedPathPoints(path)
         if #points < 8 then return false end
 
-        local route = orderedPath(points)
+        local route = orderedPath(shape, path, points)
         local originalMousePosition = UserInputService:GetMouseLocation()
         local menuGui = menuScreenGui()
         local menuWasEnabled = menuGui and menuGui.Enabled
@@ -2252,6 +2343,16 @@ function Player:Create(options)
 
         local success = false
         local ok, failure = pcall(function()
+            -- Completed=true is the state observed on every green segment. If
+            -- the minigame checks this client-side, this finishes immediately;
+            -- the real mouse trace remains as a fallback for raycast validation.
+            markHoneycombPathCompleted(path)
+            RunService.Heartbeat:Wait()
+            if not stillValid() then
+                success = true
+                return
+            end
+
             if not moveMouse(route[1].Screen) then
                 error("executor sem suporte para mover o mouse")
             end
@@ -2296,17 +2397,28 @@ function Player:Create(options)
         attemptedHoneycombModels = setmetatable({}, { __mode = "k" })
 
         task.spawn(function()
+            local observedShape
+            local observedCount = 0
+            local stableSince = 0
             while not destroyed
                 and settings.AutoCompleteHoneycomb
                 and generation == honeycombAttemptGeneration do
                 local shape, path = currentHoneycombShape()
-                local cuttingStarted = localPlayer:GetAttribute("HONEYCOMB_START_CUTTING") == true
-                if cuttingStarted and shape and path and not attemptedHoneycombModels[shape] then
+                if shape and path and not attemptedHoneycombModels[shape] then
                     local points = projectedPathPoints(path)
-                    if #points >= 8 then
+                    local count = #points
+                    if shape ~= observedShape or count ~= observedCount then
+                        observedShape = shape
+                        observedCount = count
+                        stableSince = os.clock()
+                    elseif count >= 40 and os.clock() - stableSince >= 0.45 then
                         attemptedHoneycombModels[shape] = true
                         traceHoneycomb(shape, path, generation)
                     end
+                else
+                    observedShape = nil
+                    observedCount = 0
+                    stableSince = 0
                 end
                 task.wait(0.2)
             end
