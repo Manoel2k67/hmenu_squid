@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.8"
+Config.Version = "v1.2.7"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1274,10 +1274,10 @@ return {
                     Setting = "HitboxRange",
                     Id = "combat_hitbox_range",
                     Label = "Alcance da hitbox",
-                    Description = "Raio em studs, limitado à tolerância de dano do servidor.",
+                    Description = "Raio em studs. A caixa usa o dobro deste valor em cada eixo.",
                     Min = 5,
-                    Max = 9,
-                    Default = 8,
+                    Max = 500,
+                    Default = 15,
                     Step = 1,
                 },
                 {
@@ -1285,7 +1285,7 @@ return {
                     Setting = "HitboxVisible",
                     Id = "combat_hitbox_visible",
                     Label = "Mostrar área da hitbox",
-                    Description = "Exibe a esfera consultável com a mesma cor de time usada pelo ESP.",
+                    Description = "Exibe a caixa com a mesma cor de time usada pelo ESP.",
                     Default = true,
                 },
                 {
@@ -1680,8 +1680,6 @@ local RunService = game:GetService("RunService")
 local Combat = {}
 
 local HITBOX_VISUAL_NAME = "HMenuCombatHitbox"
--- Keep the local impact surface inside the distance accepted by the server.
-local MAX_HITBOX_RADIUS = 9
 local NEUTRAL_COLOR = Color3.fromRGB(190, 200, 220)
 local TEAM_COLORS = {
     red = Color3.fromRGB(255, 75, 75),
@@ -1701,6 +1699,64 @@ local FALLBACK_TEAM_COLORS = {
     Color3.fromRGB(195, 115, 255),
     Color3.fromRGB(255, 105, 170),
 }
+
+local function installRaycastRedirect(listener)
+    local key = "__HMENU_COMBAT_RAYCAST_REDIRECT"
+    local state = rawget(_G, key)
+    if type(state) ~= "table" or type(state.Listeners) ~= "table" then
+        state = { Listeners = {}, NextId = 0, Available = false }
+        rawset(_G, key, state)
+
+        if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" then
+            local oldNamecall
+            local wrapper = function(self, ...)
+                local method = ""
+                pcall(function() method = getnamecallmethod() end)
+                if method ~= "Raycast" or self ~= workspace then
+                    return oldNamecall(self, ...)
+                end
+
+                local packed = table.pack(...)
+                local result = oldNamecall(self, table.unpack(packed, 1, packed.n))
+                local current = rawget(_G, key)
+                if type(current) ~= "table" or type(current.Listeners) ~= "table" then
+                    return result
+                end
+
+                local callerIsExecutor = false
+                if type(checkcaller) == "function" then
+                    pcall(function() callerIsExecutor = checkcaller() end)
+                end
+                if callerIsExecutor then return result end
+
+                local function recast(...)
+                    return oldNamecall(self, ...)
+                end
+                for _, callback in pairs(current.Listeners) do
+                    local ok, handled, replacement = pcall(callback, result, packed, recast)
+                    if ok and handled then return replacement end
+                end
+                return result
+            end
+            if type(newcclosure) == "function" then wrapper = newcclosure(wrapper) end
+            local ok, original = pcall(function()
+                oldNamecall = hookmetamethod(game, "__namecall", wrapper)
+                return oldNamecall
+            end)
+            state.Available = ok and type(original) == "function"
+        end
+    end
+
+    state.NextId = (tonumber(state.NextId) or 0) + 1
+    local listenerId = state.NextId
+    state.Listeners[listenerId] = listener
+    return function()
+        local current = rawget(_G, key)
+        if type(current) == "table" and type(current.Listeners) == "table" then
+            current.Listeners[listenerId] = nil
+        end
+    end
+end
 
 local function fallbackTeamColor(name)
     local normalized = string.lower(tostring(name or ""))
@@ -1732,9 +1788,10 @@ function Combat:Create()
     local visuals = setmetatable({}, { __mode = "k" })
     local destroyed = false
     local scanElapsed = 0
+    local removeRaycastRedirect = nil
     local settings = {
         HitboxEnabled = false,
-        HitboxRange = 8,
+        HitboxRange = 15,
         HitboxVisible = true,
         HitboxTransparency = 78,
     }
@@ -1755,7 +1812,6 @@ function Combat:Create()
                 CanCollide = root.CanCollide,
                 CanTouch = root.CanTouch,
                 CanQuery = root.CanQuery,
-                Shape = root:IsA("Part") and root.Shape or nil,
             }
         end
         return root and originals[root]
@@ -1768,10 +1824,7 @@ function Combat:Create()
             visuals[root] = nil
         end
         local legacy = root and root:FindFirstChild(HITBOX_VISUAL_NAME)
-        if legacy and (legacy:IsA("SphereHandleAdornment")
-            or legacy:IsA("BoxHandleAdornment")) then
-            legacy:Destroy()
-        end
+        if legacy and legacy:IsA("BoxHandleAdornment") then legacy:Destroy() end
     end
 
     local function restoreRoot(root)
@@ -1783,14 +1836,13 @@ function Combat:Create()
             root.CanCollide = original.CanCollide
             root.CanTouch = original.CanTouch
             root.CanQuery = original.CanQuery
-            if original.Shape and root:IsA("Part") then root.Shape = original.Shape end
         end
         originals[root] = nil
     end
 
     local function createVisual(root)
         removeVisual(root)
-        local visual = Instance.new("SphereHandleAdornment")
+        local visual = Instance.new("BoxHandleAdornment")
         visual.Name = HITBOX_VISUAL_NAME
         visual.Adornee = root
         visual.AlwaysOnTop = true
@@ -1809,11 +1861,9 @@ function Combat:Create()
 
         present[root] = true
         rememberRoot(root)
-        local radius = math.clamp(settings.HitboxRange, 5, MAX_HITBOX_RADIUS)
-        local diameter = radius * 2
+        local diameter = math.clamp(settings.HitboxRange, 5, 500) * 2
         local size = Vector3.new(diameter, diameter, diameter)
         root.Size = size
-        if root:IsA("Part") then root.Shape = Enum.PartType.Ball end
         root.Transparency = 1
         root.CanCollide = false
         root.CanTouch = true
@@ -1821,7 +1871,7 @@ function Combat:Create()
 
         local visual = visuals[root]
         if not visual or not visual.Parent then visual = createVisual(root) end
-        visual.Radius = radius
+        visual.Size = size
         visual.Color3 = teamColor(player)
         visual.Transparency = math.clamp(settings.HitboxTransparency / 100, 0.2, 0.95)
         visual.Visible = settings.HitboxVisible
@@ -1851,6 +1901,58 @@ function Combat:Create()
         end
     end
 
+    local function gunIsEquipped()
+        local character = localPlayer and localPlayer.Character
+        local tool = character and character:FindFirstChildOfClass("Tool")
+        if not tool then return false end
+        if tool:GetAttribute("IsGun") == true then return true end
+        local weaponType = tool:FindFirstChild("WeaponType")
+        return weaponType and weaponType:IsA("StringValue")
+            and string.find(string.lower(weaponType.Value), "weapon", 1, true) ~= nil
+    end
+
+    removeRaycastRedirect = installRaycastRedirect(function(result, packed, recast)
+        if destroyed or not settings.HitboxEnabled or not gunIsEquipped() then return false end
+        if typeof(result) ~= "RaycastResult" then return false end
+
+        local targetRoot = result.Instance
+        if not targetRoot or not originals[targetRoot] then return false end
+
+        local origin = packed[1]
+        local direction = packed[2]
+        if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3"
+            or direction.Magnitude <= 0 then
+            return false
+        end
+
+        local targetDirection = targetRoot.Position - origin
+        if targetDirection.Magnitude <= 0 then return false end
+
+        local expandedSizes = {}
+        for root, original in pairs(originals) do
+            if root and root.Parent and original then
+                expandedSizes[root] = root.Size
+                root.Size = original.Size
+            end
+        end
+
+        local castLength = math.max(direction.Magnitude, targetDirection.Magnitude + 4)
+        local redirectedDirection = targetDirection.Unit * castLength
+        local ok, redirected = pcall(function()
+            if packed.n >= 3 then
+                return recast(origin, redirectedDirection, packed[3])
+            end
+            return recast(origin, redirectedDirection)
+        end)
+
+        for root, size in pairs(expandedSizes) do
+            if root and root.Parent then root.Size = size end
+        end
+
+        if not ok then return false end
+        return true, redirected
+    end)
+
     connect(RunService.Heartbeat, function(deltaTime)
         if destroyed then return end
         if settings.HitboxEnabled then
@@ -1872,7 +1974,7 @@ function Combat:Create()
                 clearHitboxes()
             end
         elseif name == "HitboxRange" then
-            settings.HitboxRange = math.clamp(tonumber(value) or 8, 5, MAX_HITBOX_RADIUS)
+            settings.HitboxRange = math.clamp(tonumber(value) or 15, 5, 500)
             if settings.HitboxEnabled then updateHitboxes() end
         elseif name == "HitboxVisible" then
             settings.HitboxVisible = value == true
@@ -1890,6 +1992,10 @@ function Combat:Create()
             pcall(function() connection:Disconnect() end)
         end
         connections = {}
+        if removeRaycastRedirect then
+            removeRaycastRedirect()
+            removeRaycastRedirect = nil
+        end
         clearHitboxes()
     end
 

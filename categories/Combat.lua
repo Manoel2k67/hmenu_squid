@@ -22,10 +22,10 @@ return {
                     Setting = "HitboxRange",
                     Id = "combat_hitbox_range",
                     Label = "Alcance da hitbox",
-                    Description = "Raio em studs, limitado à tolerância de dano do servidor.",
+                    Description = "Raio em studs. A caixa usa o dobro deste valor em cada eixo.",
                     Min = 5,
-                    Max = 9,
-                    Default = 8,
+                    Max = 500,
+                    Default = 15,
                     Step = 1,
                 },
                 {
@@ -33,7 +33,7 @@ return {
                     Setting = "HitboxVisible",
                     Id = "combat_hitbox_visible",
                     Label = "Mostrar área da hitbox",
-                    Description = "Exibe a esfera consultável com a mesma cor de time usada pelo ESP.",
+                    Description = "Exibe a caixa com a mesma cor de time usada pelo ESP.",
                     Default = true,
                 },
                 {
