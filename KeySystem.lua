@@ -4,7 +4,7 @@
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 
-local RELEASE_VERSION = "1.2.5"
+local RELEASE_VERSION = "1.2.6"
 local BUNDLE_PATH = "dist/HMenu.bundle.lua"
 local MAX_DOWNLOAD_ATTEMPTS = 4
 local RETRY_BASE_DELAY = 0.75
@@ -103,5 +103,5 @@ local result = bundle:Create({
     AssetVersion = RELEASE_VERSION,
 })
 
-print("[HMenu] v1.2.5 aberto sem validacao de acesso.")
+print("[HMenu] v1.2.6 aberto sem validacao de acesso.")
 return result

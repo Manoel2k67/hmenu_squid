@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.5"
+Config.Version = "v1.2.6"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1649,6 +1649,20 @@ return {
                 },
             },
         },
+        {
+            Title = "Hide & Seek",
+            Icon = "navigation",
+            Controls = {
+                {
+                    Kind = "Toggle",
+                    Setting = "HideNSeekExitESP",
+                    Id = "visuals_hide_n_seek_exit_esp",
+                    Label = "ESP das portas de saída",
+                    Description = "Contorno dourado somente nas portas finais que exigem os três símbolos.",
+                    Default = false,
+                },
+            },
+        },
     },
 }
 end
@@ -2844,6 +2858,9 @@ local FAKE_FILL = Color3.fromRGB(255, 55, 55)
 local FAKE_OUTLINE = Color3.fromRGB(205, 0, 0)
 local PLAYER_ESP_NAME = "HMenuPlayerESP"
 local PLAYER_AURA_NAME = "HMenuPlayerAura"
+local EXIT_ESP_NAME = "HMenuHideNSeekExitESP"
+local EXIT_FILL = Color3.fromRGB(255, 171, 45)
+local EXIT_OUTLINE = Color3.fromRGB(255, 205, 75)
 local GLASS_MAKER_COLOR = Color3.fromRGB(255, 215, 55)
 local BABY_COLOR = Color3.fromRGB(255, 105, 180)
 local NEUTRAL_COLOR = Color3.fromRGB(190, 200, 220)
@@ -2872,10 +2889,13 @@ function Visuals:Create()
     local panelConnections = {}
     local highlights = {}
     local playerEspEntries = {}
+    local exitEntries = {}
     local humanoidDisplayOriginals = setmetatable({}, { __mode = "k" })
     local activeFolder
+    local activeExitFolder
     local glassScanElapsed = 0
     local playerScanElapsed = 0
+    local exitScanElapsed = 0
     local missingFolderWarned = false
     local destroyed = false
     local settings = {
@@ -2888,6 +2908,7 @@ function Visuals:Create()
         PlayerESPAuraIntensity = 45,
         PlayerESPGlassMaker = true,
         PlayerESPBaby = true,
+        HideNSeekExitESP = false,
     }
 
     local runtime = {}
@@ -3026,6 +3047,112 @@ function Visuals:Create()
         for _, child in ipairs(folder:GetChildren()) do
             if isPanel(child) then removeLegacyHighlight(child) end
         end
+    end
+
+    local function exitDoorsFolder()
+        local map = Workspace:FindFirstChild("Map")
+        local hideNSeek = map and map:FindFirstChild("HideNSeek")
+        local elements = hideNSeek and hideNSeek:FindFirstChild("Elements")
+        return elements and elements:FindFirstChild("ExitDoors")
+    end
+
+    local function exitDoorAdornee(exitDoor)
+        if exitDoor:IsA("BasePart") then return exitDoor end
+
+        local door = exitDoor:FindFirstChild("Door")
+        if door then
+            local proximityPart = door:FindFirstChild("ProximityPart", true)
+            if proximityPart and proximityPart:IsA("BasePart") then return proximityPart end
+            local doorPart = door:FindFirstChildWhichIsA("BasePart", true)
+            if doorPart then return doorPart end
+        end
+        return exitDoor:FindFirstChildWhichIsA("BasePart", true)
+    end
+
+    local function isExitDoor(instance)
+        return instance and instance.Name == "ExitDoor"
+            and (instance:IsA("Model") or instance:IsA("BasePart"))
+    end
+
+    local function removeExitEsp(exitDoor)
+        local entry = exitEntries[exitDoor]
+        if entry then
+            if entry.Highlight and entry.Highlight.Parent then entry.Highlight:Destroy() end
+            exitEntries[exitDoor] = nil
+        end
+    end
+
+    local function clearExitEsp()
+        local doors = {}
+        for exitDoor in pairs(exitEntries) do table.insert(doors, exitDoor) end
+        for _, exitDoor in ipairs(doors) do removeExitEsp(exitDoor) end
+
+        local folder = exitDoorsFolder()
+        if folder then
+            for _, descendant in ipairs(folder:GetDescendants()) do
+                if descendant.Name == EXIT_ESP_NAME or descendant.Name == "HMenuHideNSeekExitLabel" then
+                    descendant:Destroy()
+                end
+            end
+        end
+    end
+
+    local function createExitEsp(exitDoor)
+        local adornee = exitDoorAdornee(exitDoor)
+        if not adornee then return nil end
+
+        local previousHighlight = exitDoor:FindFirstChild(EXIT_ESP_NAME)
+        if previousHighlight then previousHighlight:Destroy() end
+        local previousLabel = adornee:FindFirstChild("HMenuHideNSeekExitLabel")
+        if previousLabel then previousLabel:Destroy() end
+
+        local highlight = Instance.new("Highlight")
+        highlight.Name = EXIT_ESP_NAME
+        highlight.Adornee = exitDoor
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.FillColor = EXIT_FILL
+        highlight.FillTransparency = math.clamp(settings.GlassTransparency / 100, 0.55, 0.95)
+        highlight.OutlineColor = EXIT_OUTLINE
+        highlight.OutlineTransparency = 0.05
+        highlight.Parent = exitDoor
+
+        return {
+            Highlight = highlight,
+            Adornee = adornee,
+        }
+    end
+
+    local function updateExitEsp()
+        if not settings.HideNSeekExitESP then
+            clearExitEsp()
+            return
+        end
+
+        local folder = exitDoorsFolder()
+        if folder ~= activeExitFolder then
+            clearExitEsp()
+            activeExitFolder = folder
+        end
+        if not folder then return end
+
+        local present = {}
+        for _, exitDoor in ipairs(folder:GetChildren()) do
+            if isExitDoor(exitDoor) then
+                present[exitDoor] = true
+                local entry = exitEntries[exitDoor]
+                if not entry or not entry.Highlight.Parent or not entry.Adornee:IsDescendantOf(exitDoor) then
+                    removeExitEsp(exitDoor)
+                    entry = createExitEsp(exitDoor)
+                    exitEntries[exitDoor] = entry
+                end
+            end
+        end
+
+        local stale = {}
+        for exitDoor in pairs(exitEntries) do
+            if not present[exitDoor] or not exitDoor.Parent then table.insert(stale, exitDoor) end
+        end
+        for _, exitDoor in ipairs(stale) do removeExitEsp(exitDoor) end
     end
 
     local function fallbackTeamColor(name)
@@ -3267,6 +3394,9 @@ function Visuals:Create()
         if settings.PlayerESP then
             playerScanElapsed = playerScanElapsed + deltaTime
         end
+        if settings.HideNSeekExitESP then
+            exitScanElapsed = exitScanElapsed + deltaTime
+        end
         if settings.GlassESP and glassScanElapsed >= 0.5 then
             glassScanElapsed = 0
             refreshFolder()
@@ -3274,6 +3404,10 @@ function Visuals:Create()
         if settings.PlayerESP and playerScanElapsed >= 0.35 then
             playerScanElapsed = 0
             updatePlayerEsp()
+        end
+        if settings.HideNSeekExitESP and exitScanElapsed >= 0.35 then
+            exitScanElapsed = 0
+            updateExitEsp()
         end
     end)
 
@@ -3295,6 +3429,11 @@ function Visuals:Create()
         elseif name == "GlassTransparency" then
             settings.GlassTransparency = math.clamp(tonumber(value) or 82, 55, 95)
             for part in pairs(highlights) do updatePanel(part) end
+            for _, entry in pairs(exitEntries) do
+                if entry.Highlight and entry.Highlight.Parent then
+                    entry.Highlight.FillTransparency = math.clamp(settings.GlassTransparency / 100, 0.55, 0.95)
+                end
+            end
         elseif name == "PlayerESP" then
             settings.PlayerESP = value == true
             playerScanElapsed = 0
@@ -3306,6 +3445,15 @@ function Visuals:Create()
         elseif name == "PlayerESPAuraIntensity" then
             settings.PlayerESPAuraIntensity = math.clamp(tonumber(value) or 45, 10, 100)
             if settings.PlayerESP then updatePlayerEsp() end
+        elseif name == "HideNSeekExitESP" then
+            settings.HideNSeekExitESP = value == true
+            exitScanElapsed = 0
+            if settings.HideNSeekExitESP then
+                updateExitEsp()
+            else
+                clearExitEsp()
+                activeExitFolder = nil
+            end
         end
     end
 
@@ -3315,8 +3463,10 @@ function Visuals:Create()
         disconnectAll(folderConnections)
         clearPanels()
         clearPlayerEsp()
+        clearExitEsp()
         disconnectAll(connections)
         activeFolder = nil
+        activeExitFolder = nil
     end
 
     return runtime

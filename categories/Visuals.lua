@@ -98,5 +98,19 @@ return {
                 },
             },
         },
+        {
+            Title = "Hide & Seek",
+            Icon = "navigation",
+            Controls = {
+                {
+                    Kind = "Toggle",
+                    Setting = "HideNSeekExitESP",
+                    Id = "visuals_hide_n_seek_exit_esp",
+                    Label = "ESP das portas de saída",
+                    Description = "Contorno dourado somente nas portas finais que exigem os três símbolos.",
+                    Default = false,
+                },
+            },
+        },
     },
 }
