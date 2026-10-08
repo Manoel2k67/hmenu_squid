@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.6"
+Config.Version = "v1.2.7"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1466,14 +1466,6 @@ return {
                     Description = "Quando Workspace.BabyPickup aparecer, tenta PickupPrompt imediatamente. Nunca usa teleporte.",
                     Default = rawget(_G, "__HMENU_AUTO_COLLECT_BABY") == true,
                 },
-                {
-                    Kind = "Toggle",
-                    Setting = "AutoCompleteHoneycomb",
-                    Id = "player_auto_complete_honeycomb",
-                    Label = "Auto Complete Honeycomb",
-                    Description = "Arrasta o mouse automaticamente pelo caminho seguro do seu biscoito, independente da forma.",
-                    Default = rawget(_G, "__HMENU_AUTO_COMPLETE_HONEYCOMB") == true,
-                },
             },
         },
     },
@@ -1930,7 +1922,6 @@ function Player:Create(options)
         AntiRagdoll = false,
         AntiKnockback = false,
         AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
-        AutoCompleteHoneycomb = rawget(_G, AUTO_COMPLETE_HONEYCOMB_KEY) == true,
     }
     local attemptedBabyModels = setmetatable({}, { __mode = "k" })
     local babyAttemptGeneration = 0
@@ -2663,10 +2654,6 @@ function Player:Create(options)
         end)
     end
 
-    if settings.AutoCompleteHoneycomb then
-        startHoneycombMonitor()
-    end
-
     function runtime:Set(name, value)
         if destroyed then return end
 
@@ -2702,12 +2689,6 @@ function Player:Create(options)
                 local model = currentBabyModel()
                 if model then attemptBabyPickup(model, false) end
             end
-        elseif name == "AutoCompleteHoneycomb" then
-            settings.AutoCompleteHoneycomb = value == true
-            rawset(_G, AUTO_COMPLETE_HONEYCOMB_KEY, settings.AutoCompleteHoneycomb)
-            honeycombAttemptGeneration = honeycombAttemptGeneration + 1
-            releaseHoneycombMouse()
-            if settings.AutoCompleteHoneycomb then startHoneycombMonitor() end
         end
     end
 

@@ -1,12 +1,10 @@
-# HMenu Roblox v1.2.6
+# HMenu Roblox v1.2.7
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
-O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push, Auto Baby e Auto Complete Honeycomb. `Combat` oferece expansão de hitbox com alcance configurável e caixa visual sincronizada com as cores do ESP. `Visuals` identifica os vidros da ponte, mostra nomes, vida, auras e tags coloridas de jogadores e marca somente as portas finais do Hide & Seek. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
+O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push e Auto Baby. `Combat` oferece expansão de hitbox com alcance configurável e caixa visual sincronizada com as cores do ESP. `Visuals` identifica os vidros da ponte, mostra nomes, vida, auras e tags coloridas de jogadores e marca somente as portas finais do Hide & Seek. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
 
 O **Auto Collect** observa `Workspace.BabyPickup` e tenta `Trigger.PickupPrompt` assim que o bebê é derrubado. O módulo nunca teleporta ou move o personagem. Internamente, amplia localmente `MaxActivationDistance` para `1000`, zera `HoldDuration`, desativa linha de visão, aguarda um frame para aplicar as propriedades e chama `fireproximityprompt` em dois modos compatíveis. Como o funcionamento distante já foi confirmado, a opção opera silenciosamente, sem notificações ou logs. O estado ligado/desligado é preservado entre recarregamentos do menu na mesma sessão do executor.
-
-O **Auto Complete Honeycomb** aguarda a quantidade de segmentos de `Workspace.Map.Honeycomb.Shapes.<jogador>.Path` estabilizar, projeta o caminho para a tela e arrasta o mouse a partir do marcador verde observado. Ele também aplica o atributo `Completed=true` encontrado nos segmentos concluídos, deixando o traçado real como fallback para validações por raycast. Se o modelo não estiver nomeado com o jogador local, o módulo seleciona somente a forma que ocupa o centro da câmera. O menu é ocultado durante o traçado e restaurado ao final. São aceitas as APIs `mousemoveabs`, `mousemoverel`, `mouse1press` e `mouse1release`, com fallback para `VirtualInputManager`.
 
 ## Carregamento
 

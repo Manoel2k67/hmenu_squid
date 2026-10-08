@@ -27,7 +27,6 @@ function Player:Create(options)
         AntiRagdoll = false,
         AntiKnockback = false,
         AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
-        AutoCompleteHoneycomb = rawget(_G, AUTO_COMPLETE_HONEYCOMB_KEY) == true,
     }
     local attemptedBabyModels = setmetatable({}, { __mode = "k" })
     local babyAttemptGeneration = 0
@@ -760,10 +759,6 @@ function Player:Create(options)
         end)
     end
 
-    if settings.AutoCompleteHoneycomb then
-        startHoneycombMonitor()
-    end
-
     function runtime:Set(name, value)
         if destroyed then return end
 
@@ -799,12 +794,6 @@ function Player:Create(options)
                 local model = currentBabyModel()
                 if model then attemptBabyPickup(model, false) end
             end
-        elseif name == "AutoCompleteHoneycomb" then
-            settings.AutoCompleteHoneycomb = value == true
-            rawset(_G, AUTO_COMPLETE_HONEYCOMB_KEY, settings.AutoCompleteHoneycomb)
-            honeycombAttemptGeneration = honeycombAttemptGeneration + 1
-            releaseHoneycombMouse()
-            if settings.AutoCompleteHoneycomb then startHoneycombMonitor() end
         end
     end
 
