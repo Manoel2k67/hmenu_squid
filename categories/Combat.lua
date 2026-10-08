@@ -6,20 +6,6 @@ return {
     RuntimeModule = "runtime/Combat.lua",
     Sections = {
         {
-            Title = "Ataques",
-            Icon = "fire",
-            Controls = {
-                {
-                    Kind = "Toggle",
-                    Setting = "NoCooldown",
-                    Id = "combat_no_cooldown",
-                    Label = "Sem recarga",
-                    Description = "Remove esperas locais de golpes e ferramentas. Recargas validadas pelo servidor podem continuar ativas.",
-                    Default = false,
-                },
-            },
-        },
-        {
             Title = "Hitbox",
             Icon = "target",
             Controls = {
