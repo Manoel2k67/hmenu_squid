@@ -22,12 +22,13 @@ local function signal()
     local callbacks = {}
     return {
         Connect = function(_, callback)
-            table.insert(callbacks, callback)
-            return { Disconnect = function() end }
+            local item = { callback = callback, connected = true }
+            table.insert(callbacks, item)
+            return { Disconnect = function() item.connected = false end }
         end,
         Wait = function() coroutine.yield() end,
         Fire = function(_, ...)
-            for _, callback in ipairs(callbacks) do callback(...) end
+            for _, item in ipairs(callbacks) do if item.connected then item.callback(...) end end
         end,
     }
 end
@@ -114,6 +115,10 @@ local function fixture(Player, distance)
         seat.Disabled = true
         local trigger = instance("Trigger", "Part", model)
         trigger.Position = Vector3.new(x, 0, 0)
+        trigger.Size = Vector3.new(2, 4.13, 2.51)
+        trigger.Anchored, trigger.CanCollide = true, false
+        trigger.CFrame = { PointToObjectSpace = function(_, position) return position - trigger.Position end }
+        trigger.Touched = signal()
         local touch = instance("TouchInterest", "TouchTransmitter", trigger)
         return seat, trigger, touch
     end
@@ -131,7 +136,7 @@ local function fixture(Player, distance)
         report = function() runtime:Set("CopyMusicalChairDiagnostics"); return copiedReport end,
         experiment = function(reach)
             if reach ~= nil then runtime:Set("MusicalChairReach", reach) end
-            runtime:Set("MusicalChairMode", "Alcance experimental")
+            runtime:Set("MusicalChairMode", "Trigger ampliado")
         end,
         enable = function() runtime:Set("AutoMusicalChairs", true); tick() end }
 end
@@ -247,92 +252,121 @@ function runMusicalChairTests(Player)
         f.enable(); tick(30)
         assert(#f.calls == 2 and f.calls[2].state == 1)
     end)
-    test("experimental keeps normal touch order at distance and respects the configured cap", function()
+    local function attempts(f)
+        local _, count = string.gsub(f.report(), "Tentativa:", "")
+        return count
+    end
+    test("expanded trigger covers a distant root and restores without synthetic touch", function()
         for _, distance in ipairs({ 60, 160, 161 }) do
             local f = fixture(Player, distance)
+            local originalSize, originalFrame = f.trigger.Size, f.trigger.CFrame
             f.experiment(160)
-            f.enable(); tick(30)
+            f.enable()
+            assert(#f.calls == 0)
             if distance <= 160 then
-                assert(#f.calls == 2)
-                for _, call in ipairs(f.calls) do
-                    assert(call.part == f.root and call.target == f.trigger)
-                end
-                assert(f.calls[1].state == 0 and f.calls[2].state == 1)
-                assert(f.calls[1].time == f.calls[2].time)
-            else assert(#f.calls == 0) end
+                assert(f.trigger.Size.X / 2 >= distance + 2)
+                assert(f.trigger.Size.Y >= originalSize.Y and f.trigger.Size.Z >= originalSize.Z)
+                assert(attempts(f) == 1)
+            else
+                assert(f.trigger.Size == originalSize and attempts(f) == 0)
+            end
+            tick(30)
+            assert(f.trigger.Size == originalSize and f.trigger.CFrame == originalFrame)
             assert(f.root.Position == Vector3.zero and not f.root.Anchored)
-            assert(f.root.AssemblyLinearVelocity == Vector3.zero)
-            assert(f.trigger.Position.X == distance and f.seat.SitCalls == nil)
+            assert(f.root.AssemblyLinearVelocity == Vector3.zero and f.seat.SitCalls == nil)
         end
     end)
-    test("experimental allows one total attempt until all observed window markers retire", function()
+    test("expanded geometry accounts for trigger rotation", function()
+        local f = fixture(Player, 30)
+        local offset = Vector3.new(-20, 3, 25)
+        f.trigger.CFrame = { PointToObjectSpace = function() return offset end }
+        local originalFrame = f.trigger.CFrame
+        f.experiment(40); f.enable()
+        assert(f.trigger.Size.X >= 44 and f.trigger.Size.Y >= 10 and f.trigger.Size.Z >= 54)
+        assert(f.trigger.CFrame == originalFrame and #f.calls == 0)
+    end)
+    test("expanded mode permits one total pulse until old window markers retire", function()
         local f = fixture(Player, 60)
         local _, _, secondTouch = f.addChair("Second", 65)
-        f.experiment(160)
-        f.enable(); tick(30)
-        assert(#f.calls == 2, "must not iterate through the other distant chairs")
+        f.experiment(160); f.enable(); tick(30)
+        assert(attempts(f) == 1)
         f.runtime:Set("AutoMusicalChairs", false)
         f.runtime:Set("AutoMusicalChairs", true)
         f.runtime:Set("MusicalChairMode", "Perto (4 studs)")
-        f.experiment(80)
-        tick(30)
-        assert(#f.calls == 2)
+        f.experiment(80); tick(30)
+        assert(attempts(f) == 1)
         f.touch.Parent = nil
         f.trigger.children = {}
         local newTouch = instance("TouchInterest", "TouchTransmitter", f.trigger)
         services.Workspace.DescendantAdded:Fire(newTouch)
         tick(30)
-        assert(#f.calls == 2, "one old window marker remains")
+        assert(attempts(f) == 1)
         secondTouch.Parent = nil
         tick(30)
-        assert(#f.calls == 4, "a new observed window allows another attempt")
+        assert(attempts(f) == 2 and #f.calls == 0)
     end)
-    test("adjustable reach defaults to 8 and leaves near mode at 4", function()
-        local f = fixture(Player, 8)
-        f.enable(); tick(5)
-        assert(#f.calls == 0)
-        f.experiment()
-        tick()
-        assert(#f.calls == 2)
-        assert(string.find(f.report(), "alcance=8 studs", 1, true))
-
-        f = fixture(Player, 12)
-        f.experiment(8)
-        f.enable(); tick(5)
-        assert(#f.calls == 0)
-        f.runtime:Set("MusicalChairReach", 12)
-        tick()
-        assert(#f.calls == 2)
-        assert(string.find(f.report(), "alcance=12 studs", 1, true))
-        f.addChair("Second", 20)
-        f.runtime:Set("MusicalChairReach", 20)
+    test("range slider does not rearm a pulse or flood the diagnostic", function()
+        local f = fixture(Player, 12)
+        f.experiment(8); f.enable(); tick(5)
+        assert(attempts(f) == 0)
+        f.runtime:Set("MusicalChairReach", 12); tick()
+        assert(attempts(f) == 1)
+        for index = 4, 160 do f.runtime:Set("MusicalChairReach", index) end
         tick(30)
-        assert(#f.calls == 2, "slider changes must not rearm an attempted window")
-
+        assert(attempts(f) == 1)
+        assert(string.find(f.report(), "distancia=12.0 studs | alcance=12 studs", 1, true))
+        assert(not string.find(f.report(), "Alcance experimental ajustado:", 1, true))
         f = fixture(Player, 5)
-        f.runtime:Set("MusicalChairReach", 160)
-        f.enable(); tick(5)
-        assert(#f.calls == 0, "near mode ignores experimental slider")
+        f.runtime:Set("MusicalChairReach", 160); f.enable(); tick(5)
+        assert(attempts(f) == 0 and #f.calls == 0)
     end)
-    test("reach values are bounded and invalid input uses the default", function()
+    test("range bounds and invalid values are handled", function()
         local f = fixture(Player, 9)
-        f.experiment(0/0)
-        f.enable(); tick(5)
-        assert(#f.calls == 0)
-        assert(string.find(f.report(), "efetivo: 8 studs", 1, true))
+        f.experiment(0/0); f.enable(); tick(5)
+        assert(attempts(f) == 0 and string.find(f.report(), "efetivo: 8 studs", 1, true))
         f.runtime:Set("MusicalChairReach", 9999)
         assert(string.find(f.report(), "efetivo: 160 studs", 1, true))
         f.runtime:Set("MusicalChairReach", -99)
         assert(string.find(f.report(), "efetivo: 4 studs", 1, true))
         f.runtime:Set("MusicalChairReach", "invalid")
         assert(string.find(f.report(), "efetivo: 8 studs", 1, true))
-        f.runtime:Set("MusicalChairReach", 12.9)
-        assert(string.find(f.report(), "efetivo: 12 studs", 1, true))
     end)
-    test("experimental records stable local seating only after continuous confirmation", function()
-        local f = fixture(Player, 60)
-        f.experiment(160)
+    test("expanded pulse restores at one second and disconnects local contacts", function()
+        local f = fixture(Player, 30)
+        local originalSize = f.trigger.Size
+        f.experiment(40); f.enable()
+        f.trigger.Touched:Fire(instance("Other", "Part"))
+        f.trigger.Touched:Fire(f.root)
+        tick(12)
+        assert(f.trigger.Size == originalSize)
+        f.trigger.Touched:Fire(f.root)
+        tick(20)
+        assert(string.find(f.report(), "contatosLocais=1", 1, true))
+        assert(string.find(f.report(), "sem confirmacao local", 1, true))
+    end)
+    test("nearby touch maintains normal argument order", function()
+        local f = fixture(Player, 3)
+        local originalSize = f.trigger.Size
         f.enable()
+        assert(#f.calls == 2 and f.calls[1].part == f.root and f.calls[1].target == f.trigger)
+        assert(f.calls[1].state == 0 and f.calls[2].state == 1 and f.calls[1].time == f.calls[2].time)
+        assert(f.trigger.Size == originalSize)
+    end)
+    test("expanded mode works without firetouchinterest and restores on partial binding", function()
+        local f = fixture(Player, 30)
+        local originalSize = f.trigger.Size
+        executor.firetouchinterest = nil
+        f.experiment(40); f.enable()
+        assert(f.trigger.Size ~= originalSize)
+        f.seat.Occupant = f.humanoid
+        tick()
+        assert(f.trigger.Size == originalSize)
+        tick(30)
+        assert(#f.calls == 0 and string.find(f.report(), "vinculo local parcial", 1, true))
+    end)
+    test("expanded mode waits for continuous full binding", function()
+        local f = fixture(Player, 30)
+        f.experiment(40); f.enable()
         f.humanoid.SeatPart, f.seat.Occupant = f.seat, f.humanoid
         local weld = instance("SeatWeld", "Weld", f.seat)
         weld.Enabled, weld.Part0, weld.Part1 = true, f.seat, f.root
@@ -342,50 +376,61 @@ function runMusicalChairTests(Player)
         tick()
         f.humanoid.SeatPart, f.seat.Occupant = f.seat, f.humanoid
         tick(3)
-        assert(not string.find(f.report(), "vinculo local estavel", 1, true), "confirmation timer must reset")
+        assert(not string.find(f.report(), "vinculo local estavel", 1, true))
         tick(5)
-        local report = f.report()
-        assert(string.find(report, "vinculo local estavel por 0.5s", 1, true))
-        assert(string.find(report, "nao comprova aprovacao do servidor", 1, true))
+        assert(string.find(f.report(), "vinculo local estavel por 0.5s", 1, true))
     end)
-    test("experimental diagnostic captures transient motion from the executor", function()
-        local f = fixture(Player, 60)
-        f.experiment(160)
-        local original = executor.firetouchinterest
-        executor.firetouchinterest = function(part, target, state)
-            original(part, target, state)
-            f.root.Position = state == 0 and Vector3.new(15, 0, 0) or Vector3.zero
-            f.root.AssemblyLinearVelocity = state == 0 and Vector3.new(50, 0, 0) or Vector3.zero
+    test("cancel, death, phase end, mode change, respawn and destroy restore the pulse", function()
+        for _, action in ipairs({ "disable", "death", "phase", "mode", "respawn", "destroy", "touchremoved" }) do
+            local f = fixture(Player, 30)
+            local originalSize = f.trigger.Size
+            f.experiment(40); f.enable()
+            assert(f.trigger.Size ~= originalSize)
+            if action == "disable" then f.runtime:Set("AutoMusicalChairs", false)
+            elseif action == "death" then f.humanoid.Health = 0
+            elseif action == "phase" then f.player.attributes.PlayingMusicalChairs = nil
+            elseif action == "mode" then f.runtime:Set("MusicalChairMode", "Perto (4 studs)")
+            elseif action == "respawn" then f.player.Character = nil
+            elseif action == "touchremoved" then f.touch.Parent = nil
+            else f.runtime:Destroy() end
+            if action == "disable" or action == "mode" or action == "destroy" then
+                assert(f.trigger.Size == originalSize, "explicit cancellation must restore immediately")
+            end
+            tick(30)
+            assert(f.trigger.Size == originalSize and #f.calls == 0, action)
         end
-        f.enable(); tick(30)
-        local report = f.report()
-        assert(string.find(report, "distancia=60.0", 1, true))
-        assert(string.find(report, "deslocamentoMax=15.0", 1, true))
-        assert(string.find(report, "velocidadeMax=50.0", 1, true))
-        assert(string.find(report, "sem confirmacao local", 1, true))
-        assert(#f.calls == 2)
     end)
-    test("changing mode cancels experimental observation without a new distant request", function()
-        local f = fixture(Player, 60)
-        f.experiment(160)
-        f.enable()
-        f.runtime:Set("MusicalChairMode", "Perto (4 studs)")
+    test("game size update is preserved instead of restoring an old value", function()
+        local f = fixture(Player, 30)
+        f.experiment(40); f.enable()
+        local serverSize = Vector3.new(3, 4, 5)
+        f.trigger.Size = serverSize
         tick(30)
-        assert(#f.calls == 2)
-        assert(string.find(f.report(), "observacao cancelada", 1, true))
+        assert(f.trigger.Size == serverSize)
     end)
-    test("experimental still ends the pair on executor errors and records the failure", function()
-        local f = fixture(Player, 60)
-        f.addChair("Second", 65)
-        f.experiment(160)
-        local original = executor.firetouchinterest
-        executor.firetouchinterest = function(part, target, state)
-            original(part, target, state)
-            error("test executor error")
+    test("collidable or unanchored triggers cannot be expanded", function()
+        for _, property in ipairs({ "CanCollide", "Anchored" }) do
+            local f = fixture(Player, 30)
+            local originalSize = f.trigger.Size
+            f.trigger[property] = property == "CanCollide"
+            f.experiment(40); f.enable(); tick(30)
+            assert(attempts(f) == 0 and f.trigger.Size == originalSize and #f.calls == 0)
         end
-        f.enable(); tick(40)
-        assert(#f.calls == 2 and f.calls[2].state == 1)
-        assert(string.find(f.report(), "Erro do executor:", 1, true))
+    end)
+    test("unexpected observation errors still restore the pulse and release the worker", function()
+        local f = fixture(Player, 30)
+        local originalSize = f.trigger.Size
+        f.experiment(40); f.enable()
+        f.root.AssemblyLinearVelocity = nil
+        tick()
+        assert(f.trigger.Size == originalSize)
+        assert(string.find(f.report(), "erro no teste", 1, true))
+        f.root.AssemblyLinearVelocity = Vector3.zero
+        f.runtime:Set("MusicalChairMode", "Perto (4 studs)")
+        f.root.Position = Vector3.new(28, 0, 0)
+        f.addChair("NewChair", 29)
+        tick(20)
+        assert(#f.calls == 2, "failed worker must not retain the lock")
     end)
     print(string.format("Musical chairs: %d regression scenarios passed", passed))
 end

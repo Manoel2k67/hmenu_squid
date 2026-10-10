@@ -11,7 +11,8 @@ local AUTO_COMPLETE_HONEYCOMB_KEY = "__HMENU_AUTO_COMPLETE_HONEYCOMB"
 local MUSICAL_CHAIR_REACH = 4
 local MUSICAL_CHAIR_MAX_REACH = 160
 local MUSICAL_CHAIR_NEAR_MODE = "Perto (4 studs)"
-local MUSICAL_CHAIR_EXPERIMENT_MODE = "Alcance experimental"
+local MUSICAL_CHAIR_EXPERIMENT_MODE = "Trigger ampliado"
+local MUSICAL_CHAIR_TRIGGER_PULSE = 1
 
 function Player:Create(options)
     options = options or {}
@@ -60,6 +61,7 @@ function Player:Create(options)
     local musicalChairAttempts = setmetatable({}, { __mode = "k" })
     local musicalChairExperimentWindow = {}
     local musicalChairDiagnostics = {}
+    local musicalChairTriggerCleanup
 
     local runtime = {}
 
@@ -238,6 +240,12 @@ function Player:Create(options)
         print("[HMenu Cadeiras] " .. line)
     end
 
+    local function cleanupMusicalChairTrigger()
+        local cleanup = musicalChairTriggerCleanup
+        musicalChairTriggerCleanup = nil
+        if cleanup then cleanup() end
+    end
+
     local function experimentUsedThisWindow(chairs)
         for _, touch in ipairs(musicalChairExperimentWindow) do
             if touch:IsDescendantOf(chairs) then return true end
@@ -253,7 +261,7 @@ function Player:Create(options)
         end
     end
 
-    local function nearestAvailableChair(chairs, rootPart, reach)
+    local function nearestAvailableChair(chairs, rootPart, reach, experimental)
         local bestSeat
         local bestTrigger
         local bestTouch
@@ -261,7 +269,8 @@ function Player:Create(options)
         for _, model in ipairs(chairs:GetChildren()) do
             local seat, trigger, touch = chairParts(model)
             if seat and seat.Occupant == nil and not seat:FindFirstChild("SeatWeld")
-                and not musicalChairAttempts[touch] then
+                and not musicalChairAttempts[touch]
+                and (not experimental or trigger.Anchored and not trigger.CanCollide) then
                 local distance = (trigger.Position - rootPart.Position).Magnitude
                 if distance <= reach and distance < bestDistance then
                     bestDistance = distance
@@ -290,11 +299,11 @@ function Player:Create(options)
         local experimental = settings.MusicalChairMode == MUSICAL_CHAIR_EXPERIMENT_MODE
         if experimental and experimentUsedThisWindow(chairs) then return false end
         local reach = experimental and settings.MusicalChairReach or MUSICAL_CHAIR_REACH
-        local seat, trigger, touch, distance = nearestAvailableChair(chairs, rootPart, reach)
+        local seat, trigger, touch, distance = nearestAvailableChair(chairs, rootPart, reach, experimental)
         if not seat or not trigger then return false end
 
         local fireTouch = executorFunction("firetouchinterest")
-        if not fireTouch then
+        if not experimental and not fireTouch then
             if not musicalChairWarningShown then
                 musicalChairWarningShown = true
                 warn("[HMenu] Auto cadeira: toque automatico indisponivel; encoste no Trigger da cadeira livre.")
@@ -317,24 +326,13 @@ function Player:Create(options)
             maxDisplacement = math.max(maxDisplacement, (rootPart.Position - startPosition).Magnitude)
             maxSpeed = math.max(maxSpeed, rootPart.AssemblyLinearVelocity.Magnitude)
         end
-        local mode = experimental and "alcance ajustavel/toque normal" or "perto/toque normal"
+        local mode = experimental and "longe/Trigger ampliado sem toque simulado" or "perto/toque normal"
         logMusicalChair(string.format("Tentativa: %s | cadeira=%s | distancia=%.1f studs | alcance=%.0f studs", mode, seat.Parent.Name, distance, reach))
-        -- Do not leave the executor's touch-end pending across a physics
-        -- frame while the character can move or the seat can bind.
-        -- Keep the normal pair that produced a nearby binding in the field
-        -- test. Only the selection radius changes in the experimental mode.
-        local touchOk, touchError = pcall(fireTouch, rootPart, trigger, 0)
-        sampleMotion()
-        local endOk, endError = pcall(fireTouch, rootPart, trigger, 1)
-        sampleMotion()
-        if not touchOk or not endOk then
-            warn("[HMenu] Auto cadeira: falha no toque: " .. tostring(touchError or endError))
-            logMusicalChair("Erro do executor: " .. tostring(touchError or endError))
-        end
-
-        local confirmationDeadline = os.clock() + (experimental and 2 or 1)
-        local seated = isReallySeated(humanoid, chairs)
-        local confirmedSince = seated and os.clock() or nil
+        local contacts = 0
+        local contactConnection
+        local restoreTrigger
+        local pulseDeadline
+        local seated = false
         local outcome = "sem confirmacao local"
         local function stillValid()
             return not destroyed and settings.AutoMusicalChairs and generation == musicalChairGeneration
@@ -344,27 +342,85 @@ function Player:Create(options)
             and musicalChairsFolder() == chairs and seat:IsDescendantOf(chairs)
             and touch.Parent == trigger
         end
-        while stillValid() and os.clock() < confirmationDeadline do
+        -- Every exit, including errors and cancellation while yielding, must
+        -- restore our size override and disconnect the contact observer.
+        local ok, failure = pcall(function()
+            contactConnection = trigger.Touched:Connect(function(part)
+                if stillValid() and part and part:IsDescendantOf(humanoid.Parent) then
+                    contacts = contacts + 1
+                    if contacts == 1 then logMusicalChair("Contato fisico local com Trigger observado.") end
+                end
+            end)
+            if experimental then
+                local originalSize = trigger.Size
+                local offset = trigger.CFrame:PointToObjectSpace(rootPart.Position)
+                local expandedSize = Vector3.new(
+                    math.max(originalSize.X, math.abs(offset.X) * 2 + 4),
+                    math.max(originalSize.Y, math.abs(offset.Y) * 2 + 4),
+                    math.max(originalSize.Z, math.abs(offset.Z) * 2 + 4)
+                )
+                local restored = false
+                restoreTrigger = function()
+                    if restored then return end
+                    restored = true
+                    if contactConnection then pcall(function() contactConnection:Disconnect() end) end
+                    local restoreOk, restoreError = pcall(function()
+                        -- Preserve an intervening update from the game.
+                        if trigger.Size == expandedSize then trigger.Size = originalSize end
+                    end)
+                    if not restoreOk then logMusicalChair("Falha ao restaurar Trigger: " .. tostring(restoreError)) end
+                    if musicalChairTriggerCleanup == restoreTrigger then musicalChairTriggerCleanup = nil end
+                end
+                musicalChairTriggerCleanup = restoreTrigger
+                trigger.Size = expandedSize
+                pulseDeadline = os.clock() + MUSICAL_CHAIR_TRIGGER_PULSE
+                logMusicalChair(string.format("Trigger ampliado por ate 1s: (%.1f, %.1f, %.1f). De um passo durante a tentativa.",
+                    expandedSize.X, expandedSize.Y, expandedSize.Z))
+            else
+                -- Keep the pair within one frame in the nearby mode.
+                local touchOk, touchError = pcall(fireTouch, rootPart, trigger, 0)
+                pcall(sampleMotion)
+                local endOk, endError = pcall(fireTouch, rootPart, trigger, 1)
+                if not touchOk or not endOk then
+                    logMusicalChair("Erro do executor: " .. tostring(touchError or endError))
+                end
+            end
             sampleMotion()
-            if seated and (not experimental or os.clock() - confirmedSince >= 0.5) then
-                outcome = experimental and "vinculo local estavel por 0.5s" or "vinculo local confirmado"
-                break
-            end
-            if seat.Occupant ~= nil and seat.Occupant ~= humanoid then
-                outcome = "alvo ocupado por outro jogador"
-                break
-            end
-            RunService.Heartbeat:Wait()
+            local confirmationDeadline = os.clock() + (experimental and 2 or 1)
             seated = isReallySeated(humanoid, chairs)
-            if seated then confirmedSince = confirmedSince or os.clock()
-            else confirmedSince = nil end
+            local confirmedSince = seated and os.clock() or nil
+            while stillValid() and os.clock() < confirmationDeadline do
+                sampleMotion()
+                if restoreTrigger and (os.clock() >= pulseDeadline or hasChairBinding(humanoid, chairs)
+                    or trigger.CanCollide or not trigger.CanTouch or not trigger.Anchored) then
+                    restoreTrigger()
+                end
+                if seated and (not experimental or os.clock() - confirmedSince >= 0.5) then
+                    outcome = experimental and "vinculo local estavel por 0.5s" or "vinculo local confirmado"
+                    break
+                end
+                if seat.Occupant ~= nil and seat.Occupant ~= humanoid then
+                    outcome = "alvo ocupado por outro jogador"
+                    break
+                end
+                RunService.Heartbeat:Wait()
+                seated = isReallySeated(humanoid, chairs)
+                if seated then confirmedSince = confirmedSince or os.clock()
+                else confirmedSince = nil end
+            end
+            if not stillValid() then outcome = "observacao cancelada (opcao, personagem ou fase mudou)"
+            elseif outcome == "sem confirmacao local" and hasChairBinding(humanoid, chairs) then
+                outcome = "vinculo local parcial ou ainda nao estabilizado"
+            end
+        end)
+        if restoreTrigger then restoreTrigger() end
+        if contactConnection then pcall(function() contactConnection:Disconnect() end) end
+        if not ok then
+            outcome = "erro no teste"
+            logMusicalChair("Erro na observacao: " .. tostring(failure))
         end
-        if not stillValid() then outcome = "observacao cancelada (opcao, personagem ou fase mudou)"
-        elseif outcome == "sem confirmacao local" and hasChairBinding(humanoid, chairs) then
-            outcome = "vinculo local parcial ou ainda nao estabilizado"
-        end
-        logMusicalChair(string.format("Resultado: %s | deslocamentoMax=%.1f studs | velocidadeMax=%.1f studs/s | nao comprova aprovacao do servidor",
-            outcome, maxDisplacement, maxSpeed))
+        logMusicalChair(string.format("Resultado: %s | contatosLocais=%d | deslocamentoMax=%.1f studs | velocidadeMax=%.1f studs/s | nao comprova aprovacao do servidor",
+            outcome, contacts, maxDisplacement, maxSpeed))
         if musicalChairAttempting == attempt then musicalChairAttempting = nil end
         return seated
     end
@@ -1342,13 +1398,15 @@ function Player:Create(options)
                 startMusicalChairMonitor()
             else
                 musicalChairGeneration = musicalChairGeneration + 1
+                cleanupMusicalChairTrigger()
             end
         elseif name == "MusicalChairMode" then
             if value ~= MUSICAL_CHAIR_NEAR_MODE and value ~= MUSICAL_CHAIR_EXPERIMENT_MODE then return end
             if settings.MusicalChairMode == value then return end
             settings.MusicalChairMode = value
+            cleanupMusicalChairTrigger()
             if value == MUSICAL_CHAIR_EXPERIMENT_MODE then
-                logMusicalChair(string.format("Modo: %s | alcance=%.0f studs | toque normal | uma tentativa por janela.", value, settings.MusicalChairReach))
+                logMusicalChair(string.format("Modo: %s | alcance=%.0f studs | sem toque simulado | uma tentativa por janela.", value, settings.MusicalChairReach))
             else
                 logMusicalChair("Modo: Perto (4 studs) | toque normal.")
             end
@@ -1361,10 +1419,13 @@ function Player:Create(options)
             settings.MusicalChairReach = reach
             -- Do not cancel observation or rearm a consumed window when the
             -- slider changes; the radius applies to the next eligible attempt.
-            logMusicalChair(string.format("Alcance experimental ajustado: %.0f studs (proximas tentativas; modo Perto continua em 4).", reach))
+            -- Slider emits many intermediate values. The effective value is
+            -- recorded in the report and with each attempt instead.
         elseif name == "CopyMusicalChairDiagnostics" then
             local report = "HMenu - Diagnostico das cadeiras\nModo: " .. settings.MusicalChairMode
-                .. "\nMetodo: toque normal (personagem -> Trigger)"
+                .. (settings.MusicalChairMode == MUSICAL_CHAIR_EXPERIMENT_MODE
+                    and "\nMetodo: Trigger ampliado temporariamente (sem firetouchinterest)"
+                    or "\nMetodo: toque normal (personagem -> Trigger)")
                 .. string.format("\nAlcance configurado: %.0f studs | efetivo: %.0f studs", settings.MusicalChairReach,
                     settings.MusicalChairMode == MUSICAL_CHAIR_EXPERIMENT_MODE and settings.MusicalChairReach or MUSICAL_CHAIR_REACH)
                 .. "\nSinais locais nao comprovam aceitacao pelo servidor.\n" .. table.concat(musicalChairDiagnostics, "\n")
@@ -1387,6 +1448,7 @@ function Player:Create(options)
     function runtime:Destroy()
         if destroyed then return end
         destroyed = true
+        cleanupMusicalChairTrigger()
         pentathlonRecoveryGeneration = pentathlonRecoveryGeneration + 1
         pentathlonRecoveryUntil = 0
         unbindPentathlonRenderStep()
