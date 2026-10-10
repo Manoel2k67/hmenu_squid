@@ -1,4 +1,4 @@
-# HMenu Roblox v1.2.14
+# HMenu Roblox v1.2.15
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
@@ -6,7 +6,7 @@ O layout, os componentes e os ícones foram preservados. Os temas selecionáveis
 
 O **Auto Collect** monitora `Workspace.BabyPickup` enquanto o bebê permanecer no chão e tenta `Trigger.PickupPrompt` até `HasBaby=true` confirmar a coleta. O módulo nunca teleporta ou move o personagem. Internamente, amplia localmente `MaxActivationDistance` para `1000`, zera `HoldDuration`, desativa linha de visão, aguarda um frame e repete assinaturas compatíveis de `fireproximityprompt`. Ele não usa o ciclo normal de segurar `E`, portanto não depende de apontar a câmera para o bebê. Prompts ainda ausentes ou desabilitados continuam sendo observados, em vez de serem descartados depois da primeira falha. A opção opera silenciosamente e seu estado é preservado entre recarregamentos do menu na mesma sessão do executor.
 
-**Movimento no Pentatlo** atua somente quando `PENTA_ONGOING=true` e `PlayingPentathlon=true`. Enquanto ligado, mantém `DISABLE_MOVEMENT` e `DISABLE_WALKSPEED` em `false`, reativa os controles padrão e remove ancoragem local do personagem. Ao desligar durante a fase, restaura os atributos observados antes da ativação; ao terminar a fase, remove o estado temporário para não afetar os próximos jogos.
+**Movimento no Pentatlo** atua somente quando `PENTA_ONGOING=true` e `PlayingPentathlon=true`. Enquanto ligado, vigia e devolve imediatamente `DISABLE_MOVEMENT` e `DISABLE_WALKSPEED` para `false`, reativa os controles padrão e remove ancoragem local do personagem. Como segunda camada, WASD/setas comandam diretamente o Humanoid e a velocidade horizontal no fim de cada frame, mesmo quando o controlador da fase tenta consumir a entrada. Espaço continua enviando o salto. Ao desligar durante a fase, restaura os atributos observados antes da ativação; ao terminar a fase, remove o estado temporário para não afetar os próximos jogos.
 
 ## Carregamento
 

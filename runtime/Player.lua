@@ -19,6 +19,9 @@ function Player:Create(options)
     local manualSitRootOriginals = setmetatable({}, { __mode = "k" })
     local pentathlonRootOriginals = setmetatable({}, { __mode = "k" })
     local pentathlonAttributeOriginals
+    local pentathlonAttributeGuard = false
+    local pentathlonRenderStepName = "HMenuPentathlonMovement_" .. tostring(localPlayer.UserId)
+    local pentathlonRenderStepBound = false
     local playerControls
     local lastControlsEnable = 0
     local lightingOriginals
@@ -746,12 +749,23 @@ function Player:Create(options)
         end
     end
 
+    local function forcePentathlonAttributes()
+        if pentathlonAttributeGuard or not settings.PentathlonMovement or not pentathlonIsActive() then return end
+        pentathlonAttributeGuard = true
+        if localPlayer:GetAttribute("DISABLE_MOVEMENT") ~= false then
+            localPlayer:SetAttribute("DISABLE_MOVEMENT", false)
+        end
+        if localPlayer:GetAttribute("DISABLE_WALKSPEED") ~= false then
+            localPlayer:SetAttribute("DISABLE_WALKSPEED", false)
+        end
+        pentathlonAttributeGuard = false
+    end
+
     local function applyPentathlonMovement()
         if not pentathlonIsActive() then return end
         rememberPentathlonAttributes()
 
-        localPlayer:SetAttribute("DISABLE_MOVEMENT", false)
-        localPlayer:SetAttribute("DISABLE_WALKSPEED", false)
+        forcePentathlonAttributes()
 
         local humanoid = currentHumanoid()
         if humanoid and humanoid.Health > 0 then
@@ -777,7 +791,77 @@ function Player:Create(options)
         end
     end
 
+    local function keyboardPentathlonDirection()
+        if UserInputService:GetFocusedTextBox() then return Vector3.zero end
+
+        local horizontal = 0
+        local vertical = 0
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) or UserInputService:IsKeyDown(Enum.KeyCode.Right) then
+            horizontal = horizontal + 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) or UserInputService:IsKeyDown(Enum.KeyCode.Left) then
+            horizontal = horizontal - 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) or UserInputService:IsKeyDown(Enum.KeyCode.Up) then
+            vertical = vertical + 1
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) or UserInputService:IsKeyDown(Enum.KeyCode.Down) then
+            vertical = vertical - 1
+        end
+        if horizontal == 0 and vertical == 0 then return Vector3.zero end
+
+        local camera = Workspace.CurrentCamera
+        local look = camera and camera.CFrame.LookVector or Vector3.new(0, 0, -1)
+        local right = camera and camera.CFrame.RightVector or Vector3.new(1, 0, 0)
+        look = Vector3.new(look.X, 0, look.Z)
+        right = Vector3.new(right.X, 0, right.Z)
+        if look.Magnitude < 0.001 then look = Vector3.new(0, 0, -1) else look = look.Unit end
+        if right.Magnitude < 0.001 then right = Vector3.new(1, 0, 0) else right = right.Unit end
+
+        local direction = right * horizontal + look * vertical
+        return direction.Magnitude > 1 and direction.Unit or direction
+    end
+
+    local function drivePentathlonMovement()
+        if not settings.PentathlonMovement or not pentathlonIsActive() or settings.ManualSit then return end
+        applyPentathlonMovement()
+
+        local humanoid = currentHumanoid()
+        local rootPart = currentRootPart()
+        if not humanoid or humanoid.Health <= 0 or not rootPart then return end
+
+        local direction = keyboardPentathlonDirection()
+        humanoid:Move(direction, false)
+
+        if direction.Magnitude > 0 then
+            local speed = settings.WalkSpeed or humanoid.WalkSpeed
+            speed = math.clamp(tonumber(speed) or 16, 8, 200)
+            local velocity = rootPart.AssemblyLinearVelocity
+            rootPart.AssemblyLinearVelocity = Vector3.new(direction.X * speed, velocity.Y, direction.Z * speed)
+        end
+
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            humanoid.Jump = true
+        end
+    end
+
+    local function bindPentathlonRenderStep()
+        if pentathlonRenderStepBound then return end
+        pentathlonRenderStepBound = true
+        RunService:BindToRenderStep(pentathlonRenderStepName, Enum.RenderPriority.Last.Value + 10, function()
+            if destroyed then return end
+            drivePentathlonMovement()
+        end)
+    end
+
+    local function unbindPentathlonRenderStep()
+        if not pentathlonRenderStepBound then return end
+        pentathlonRenderStepBound = false
+        pcall(RunService.UnbindFromRenderStep, RunService, pentathlonRenderStepName)
+    end
+
     local function restorePentathlonMovement()
+        if not settings.PentathlonMovement then unbindPentathlonRenderStep() end
         local phaseStillActive = pentathlonIsActive()
         if pentathlonAttributeOriginals then
             for name, original in pairs(pentathlonAttributeOriginals) do
@@ -796,6 +880,16 @@ function Player:Create(options)
             end
             pentathlonRootOriginals[rootPart] = nil
         end
+    end
+
+    for _, attributeName in ipairs({ "DISABLE_MOVEMENT", "DISABLE_WALKSPEED" }) do
+        connect(localPlayer:GetAttributeChangedSignal(attributeName), function()
+            if destroyed or pentathlonAttributeGuard then return end
+            if settings.PentathlonMovement and pentathlonIsActive()
+                and localPlayer:GetAttribute(attributeName) ~= false then
+                task.defer(forcePentathlonAttributes)
+            end
+        end)
     end
 
     local function beginImpactWindow()
@@ -893,7 +987,12 @@ function Player:Create(options)
             if settings.Noclip then applyNoclip() else restoreCollision() end
         elseif name == "PentathlonMovement" then
             settings.PentathlonMovement = value == true
-            if settings.PentathlonMovement then applyPentathlonMovement() else restorePentathlonMovement() end
+            if settings.PentathlonMovement then
+                bindPentathlonRenderStep()
+                applyPentathlonMovement()
+            else
+                restorePentathlonMovement()
+            end
         elseif name == "FullBright" then
             local enabled = value == true
             if enabled and not settings.FullBright then
@@ -927,6 +1026,7 @@ function Player:Create(options)
     function runtime:Destroy()
         if destroyed then return end
         destroyed = true
+        unbindPentathlonRenderStep()
 
         for _, connection in ipairs(connections) do
             pcall(function() connection:Disconnect() end)
