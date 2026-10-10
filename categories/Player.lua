@@ -63,6 +63,14 @@ return {
                     Description = "Reativa os controles e limpa qualquer bloqueio residual depois do Pentatlo.",
                     ButtonText = "Destravar",
                 },
+                {
+                    Kind = "Toggle",
+                    Setting = "ForceMovement",
+                    Id = "player_force_movement",
+                    Label = "Manter movimento destravado",
+                    Description = "Impede continuamente que scripts residuais desativem os controles. Desligue quando não for mais necessário.",
+                    Default = false,
+                },
             },
         },
         {

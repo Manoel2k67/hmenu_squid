@@ -1,7 +1,7 @@
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.17"
+Config.Version = "v1.2.18"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
