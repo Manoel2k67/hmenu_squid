@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.22"
+Config.Version = "v1.2.23"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1497,9 +1497,20 @@ return {
                     Setting = "MusicalChairMode",
                     Id = "player_musical_chair_mode",
                     Label = "Modo das cadeiras",
-                    Options = { "Perto (4 studs)", "Longe experimental" },
+                    Options = { "Perto (4 studs)", "Alcance experimental" },
                     Default = "Perto (4 studs)",
-                    Description = "Longe experimental tenta uma cadeira a até 160 studs, uma vez por janela de sentar. Pode falhar ou causar deslocamento.",
+                    Description = "Alcance experimental usa a distância escolhida abaixo, com uma tentativa por janela de sentar. Pode falhar ou causar deslocamento.",
+                },
+                {
+                    Kind = "Slider",
+                    Setting = "MusicalChairReach",
+                    Id = "player_musical_chair_reach",
+                    Label = "Alcance da cadeira (studs)",
+                    Description = "Usado em Alcance experimental. Comece com 8 e aumente entre rodadas. O modo Perto fica em 4 studs.",
+                    Min = 4,
+                    Max = 160,
+                    Default = 8,
+                    Step = 1,
                 },
                 {
                     Kind = "Toggle",
@@ -2131,9 +2142,9 @@ local Player = {}
 local AUTO_COLLECT_BABY_KEY = "__HMENU_AUTO_COLLECT_BABY"
 local AUTO_COMPLETE_HONEYCOMB_KEY = "__HMENU_AUTO_COMPLETE_HONEYCOMB"
 local MUSICAL_CHAIR_REACH = 4
-local MUSICAL_CHAIR_EXPERIMENT_REACH = 160
+local MUSICAL_CHAIR_MAX_REACH = 160
 local MUSICAL_CHAIR_NEAR_MODE = "Perto (4 studs)"
-local MUSICAL_CHAIR_EXPERIMENT_MODE = "Longe experimental"
+local MUSICAL_CHAIR_EXPERIMENT_MODE = "Alcance experimental"
 
 function Player:Create(options)
     options = options or {}
@@ -2168,6 +2179,7 @@ function Player:Create(options)
         ManualSit = false,
         AutoMusicalChairs = false,
         MusicalChairMode = MUSICAL_CHAIR_NEAR_MODE,
+        MusicalChairReach = 8,
         AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
     }
     local babyPickupWorkers = setmetatable({}, { __mode = "k" })
@@ -2410,7 +2422,7 @@ function Player:Create(options)
 
         local experimental = settings.MusicalChairMode == MUSICAL_CHAIR_EXPERIMENT_MODE
         if experimental and experimentUsedThisWindow(chairs) then return false end
-        local reach = experimental and MUSICAL_CHAIR_EXPERIMENT_REACH or MUSICAL_CHAIR_REACH
+        local reach = experimental and settings.MusicalChairReach or MUSICAL_CHAIR_REACH
         local seat, trigger, touch, distance = nearestAvailableChair(chairs, rootPart, reach)
         if not seat or not trigger then return false end
 
@@ -2438,17 +2450,15 @@ function Player:Create(options)
             maxDisplacement = math.max(maxDisplacement, (rootPart.Position - startPosition).Magnitude)
             maxSpeed = math.max(maxSpeed, rootPart.AssemblyLinearVelocity.Magnitude)
         end
-        local mode = experimental and "longe/toque invertido" or "perto/toque normal"
-        logMusicalChair(string.format("Tentativa: %s | cadeira=%s | distancia=%.1f studs", mode, seat.Parent.Name, distance))
+        local mode = experimental and "alcance ajustavel/toque normal" or "perto/toque normal"
+        logMusicalChair(string.format("Tentativa: %s | cadeira=%s | distancia=%.1f studs | alcance=%.0f studs", mode, seat.Parent.Name, distance, reach))
         -- Do not leave the executor's touch-end pending across a physics
         -- frame while the character can move or the seat can bind.
-        -- Experimental hypothesis: reversing the pair may behave differently
-        -- in this executor. It does not establish server acceptance.
-        local firstPart = experimental and trigger or rootPart
-        local secondPart = experimental and rootPart or trigger
-        local touchOk, touchError = pcall(fireTouch, firstPart, secondPart, 0)
+        -- Keep the normal pair that produced a nearby binding in the field
+        -- test. Only the selection radius changes in the experimental mode.
+        local touchOk, touchError = pcall(fireTouch, rootPart, trigger, 0)
         sampleMotion()
-        local endOk, endError = pcall(fireTouch, firstPart, secondPart, 1)
+        local endOk, endError = pcall(fireTouch, rootPart, trigger, 1)
         sampleMotion()
         if not touchOk or not endOk then
             warn("[HMenu] Auto cadeira: falha no toque: " .. tostring(touchError or endError))
@@ -3470,10 +3480,26 @@ function Player:Create(options)
             if value ~= MUSICAL_CHAIR_NEAR_MODE and value ~= MUSICAL_CHAIR_EXPERIMENT_MODE then return end
             if settings.MusicalChairMode == value then return end
             settings.MusicalChairMode = value
-            logMusicalChair("Modo: " .. value .. ". Experimental usa uma tentativa por janela, ate 160 studs.")
+            if value == MUSICAL_CHAIR_EXPERIMENT_MODE then
+                logMusicalChair(string.format("Modo: %s | alcance=%.0f studs | toque normal | uma tentativa por janela.", value, settings.MusicalChairReach))
+            else
+                logMusicalChair("Modo: Perto (4 studs) | toque normal.")
+            end
             if settings.AutoMusicalChairs then startMusicalChairMonitor() end
+        elseif name == "MusicalChairReach" then
+            local reach = tonumber(value) or 8
+            if reach ~= reach then reach = 8 end
+            reach = math.floor(math.clamp(reach, MUSICAL_CHAIR_REACH, MUSICAL_CHAIR_MAX_REACH))
+            if settings.MusicalChairReach == reach then return end
+            settings.MusicalChairReach = reach
+            -- Do not cancel observation or rearm a consumed window when the
+            -- slider changes; the radius applies to the next eligible attempt.
+            logMusicalChair(string.format("Alcance experimental ajustado: %.0f studs (proximas tentativas; modo Perto continua em 4).", reach))
         elseif name == "CopyMusicalChairDiagnostics" then
             local report = "HMenu - Diagnostico das cadeiras\nModo: " .. settings.MusicalChairMode
+                .. "\nMetodo: toque normal (personagem -> Trigger)"
+                .. string.format("\nAlcance configurado: %.0f studs | efetivo: %.0f studs", settings.MusicalChairReach,
+                    settings.MusicalChairMode == MUSICAL_CHAIR_EXPERIMENT_MODE and settings.MusicalChairReach or MUSICAL_CHAIR_REACH)
                 .. "\nSinais locais nao comprovam aceitacao pelo servidor.\n" .. table.concat(musicalChairDiagnostics, "\n")
             local copy = executorFunction("setclipboard") or executorFunction("toclipboard")
             local copied = copy and pcall(copy, report)
