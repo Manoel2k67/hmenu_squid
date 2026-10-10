@@ -1,8 +1,8 @@
-# HMenu Roblox v1.2.8
+# HMenu Roblox v1.2.9
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
-O layout, os componentes, os ícones e os temas `Default`, `Purple` e `Orange` foram preservados. `Teleport` permite mover o personagem local até outro jogador ou para Incinerador, Elevador do lobby, Sala do Frontman e Instalação/Ilha. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push e Auto Baby. `Combat` oferece expansão de hitbox com alcance configurável e caixa visual sincronizada com as cores do ESP. `Visuals` identifica os vidros da ponte, mostra nomes, vida, auras e tags coloridas de jogadores e marca somente as portas finais do Hide & Seek. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
+O layout, os componentes e os ícones foram preservados. Os temas selecionáveis agora são `Default`, `White` com Yuno e `Black` com Asta; as paletas claras e escuras mantêm textos, botões e controles legíveis sobre os wallpapers. `Teleport` permite mover o personagem local até outro jogador ou para Incinerador, Elevador do lobby, Sala do Frontman e Instalação/Ilha. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push e Auto Baby. `Combat` oferece expansão de hitbox com alcance configurável e caixa visual sincronizada com as cores do ESP. `Visuals` identifica os vidros da ponte, mostra nomes, vida, auras e tags coloridas de jogadores e marca somente as portas finais do Hide & Seek. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
 
 O **Auto Collect** observa `Workspace.BabyPickup` e tenta `Trigger.PickupPrompt` assim que o bebê é derrubado. O módulo nunca teleporta ou move o personagem. Internamente, amplia localmente `MaxActivationDistance` para `1000`, zera `HoldDuration`, desativa linha de visão, aguarda um frame para aplicar as propriedades e chama `fireproximityprompt` em dois modos compatíveis. Como o funcionamento distante já foi confirmado, a opção opera silenciosamente, sem notificações ou logs. O estado ligado/desligado é preservado entre recarregamentos do menu na mesma sessão do executor.
 
@@ -35,9 +35,10 @@ HMenuSchema.lua            contratos das definições declarativas
 categories/                páginas do menu; Player, Teleport e Visuals possuem conteúdo
 runtime/Player.lua         movimento, proteções e Auto Collect do bebê
 runtime/Combat.lua         hitbox expansível e visual por cor de time
+runtime/Misc.lua           seletor dos temas Default, White e Black
 runtime/Teleport.lua       teleporte até jogadores e áreas carregadas do mapa
 runtime/Visuals.lua        Glass Vision, ESP de jogadores e saídas finais do Hide & Seek
-theme/wallpapers/          wallpapers preservados dos temas
+theme/wallpapers/          wallpapers White/Yuno e Black/Asta
 dist/HMenu.bundle.lua      arquivo gerado usado no executor
 tools/Build-Bundle.ps1     gerador determinístico do bundle
 tools/Test-Project.ps1     verificações de release, estrutura e sintaxe

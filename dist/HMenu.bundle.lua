@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.8"
+Config.Version = "v1.2.9"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -37,50 +37,50 @@ Config.Themes = {
     Default = {
         Colors = Config.Theme,
     },
-    Purple = {
-        Wallpaper = "theme/wallpapers/Purple.png",
-        WallpaperTransparency = 0.42,
-        ShadeTransparency = 0.5,
+    White = {
+        Wallpaper = "theme/wallpapers/White.png",
+        WallpaperTransparency = 0.18,
+        ShadeTransparency = 0.58,
         Colors = {
-            Window = Color3.fromRGB(37, 24, 61),
-            WindowHighlight = Color3.fromRGB(69, 43, 108),
-            WindowDark = Color3.fromRGB(18, 11, 33),
-            Sidebar = Color3.fromRGB(29, 19, 49),
-            Header = Color3.fromRGB(34, 21, 56),
-            Surface = Color3.fromRGB(45, 29, 73),
-            SurfaceHover = Color3.fromRGB(61, 40, 96),
-            Control = Color3.fromRGB(32, 21, 54),
-            Accent = Color3.fromRGB(177, 105, 255),
-            Bookmark = Color3.fromRGB(255, 220, 78),
-            Text = Color3.fromRGB(247, 242, 255),
-            Muted = Color3.fromRGB(198, 181, 224),
-            Dim = Color3.fromRGB(143, 120, 176),
-            Border = Color3.fromRGB(111, 77, 151),
-            Success = Color3.fromRGB(105, 224, 158),
-            Danger = Color3.fromRGB(255, 119, 144),
+            Window = Color3.fromRGB(235, 239, 244),
+            WindowHighlight = Color3.fromRGB(255, 255, 255),
+            WindowDark = Color3.fromRGB(218, 224, 232),
+            Sidebar = Color3.fromRGB(244, 247, 250),
+            Header = Color3.fromRGB(248, 250, 252),
+            Surface = Color3.fromRGB(248, 250, 252),
+            SurfaceHover = Color3.fromRGB(228, 234, 241),
+            Control = Color3.fromRGB(235, 239, 244),
+            Accent = Color3.fromRGB(24, 30, 38),
+            Bookmark = Color3.fromRGB(91, 113, 84),
+            Text = Color3.fromRGB(18, 23, 30),
+            Muted = Color3.fromRGB(55, 65, 77),
+            Dim = Color3.fromRGB(99, 111, 125),
+            Border = Color3.fromRGB(157, 169, 182),
+            Success = Color3.fromRGB(37, 137, 83),
+            Danger = Color3.fromRGB(193, 54, 66),
         },
     },
-    Orange = {
-        Wallpaper = "theme/wallpapers/Orange.png",
-        WallpaperTransparency = 0.42,
-        ShadeTransparency = 0.5,
+    Black = {
+        Wallpaper = "theme/wallpapers/Black.png",
+        WallpaperTransparency = 0.14,
+        ShadeTransparency = 0.62,
         Colors = {
-            Window = Color3.fromRGB(58, 31, 18),
-            WindowHighlight = Color3.fromRGB(108, 55, 24),
-            WindowDark = Color3.fromRGB(31, 15, 8),
-            Sidebar = Color3.fromRGB(48, 25, 14),
-            Header = Color3.fromRGB(55, 28, 16),
-            Surface = Color3.fromRGB(68, 35, 20),
-            SurfaceHover = Color3.fromRGB(91, 48, 26),
-            Control = Color3.fromRGB(49, 25, 14),
-            Accent = Color3.fromRGB(255, 145, 58),
-            Bookmark = Color3.fromRGB(255, 220, 78),
-            Text = Color3.fromRGB(255, 246, 237),
-            Muted = Color3.fromRGB(222, 190, 163),
-            Dim = Color3.fromRGB(171, 128, 94),
-            Border = Color3.fromRGB(158, 88, 44),
-            Success = Color3.fromRGB(112, 222, 151),
-            Danger = Color3.fromRGB(255, 116, 104),
+            Window = Color3.fromRGB(11, 12, 15),
+            WindowHighlight = Color3.fromRGB(28, 30, 35),
+            WindowDark = Color3.fromRGB(5, 6, 8),
+            Sidebar = Color3.fromRGB(9, 10, 13),
+            Header = Color3.fromRGB(12, 13, 16),
+            Surface = Color3.fromRGB(23, 24, 29),
+            SurfaceHover = Color3.fromRGB(35, 37, 43),
+            Control = Color3.fromRGB(16, 17, 21),
+            Accent = Color3.fromRGB(245, 247, 250),
+            Bookmark = Color3.fromRGB(255, 215, 75),
+            Text = Color3.fromRGB(248, 249, 252),
+            Muted = Color3.fromRGB(199, 203, 211),
+            Dim = Color3.fromRGB(128, 134, 145),
+            Border = Color3.fromRGB(88, 93, 104),
+            Success = Color3.fromRGB(100, 222, 150),
+            Danger = Color3.fromRGB(255, 82, 96),
         },
     },
 }
@@ -1360,7 +1360,25 @@ return {
     Label = "Misc",
     Icon = "settings",
     Bookmarked = false,
-    Sections = {},
+    RuntimeModule = "runtime/Misc.lua",
+    Sections = {
+        {
+            Title = "Temas",
+            Icon = "palette",
+            Controls = {
+                {
+                    Kind = "Dropdown",
+                    Setting = "MenuTheme",
+                    Id = "menu_theme",
+                    Label = "Tema do menu",
+                    Description = "Altera a paleta e o wallpaper sem prejudicar a leitura dos controles.",
+                    Options = { "Default", "White", "Black" },
+                    Default = "Default",
+                    UseList = true,
+                },
+            },
+        },
+    },
 }
 end
 -- END categories/Misc.lua
@@ -2032,6 +2050,32 @@ end
 return Combat
 end
 -- END runtime/Combat.lua
+
+-- BEGIN runtime/Misc.lua
+__modules["runtime/Misc.lua"] = function()
+local Misc = {}
+
+function Misc:Create()
+    local runtime = {}
+    local destroyed = false
+
+    function runtime:Set(name, value)
+        if destroyed then return end
+        if name == "MenuTheme" and type(_G.__HMENU_SET_THEME) == "function" then
+            _G.__HMENU_SET_THEME(tostring(value or "Default"))
+        end
+    end
+
+    function runtime:Destroy()
+        destroyed = true
+    end
+
+    return runtime
+end
+
+return Misc
+end
+-- END runtime/Misc.lua
 
 -- BEGIN runtime/Player.lua
 __modules["runtime/Player.lua"] = function()
@@ -3706,7 +3750,7 @@ end
 
 local Bundle = {
     Version = tostring(rawget(_G, "__HMENU_RELEASE_VERSION") or "unknown"),
-    ModuleCount = 19,
+    ModuleCount = 20,
 }
 
 local function createImporter()
