@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.16"
+Config.Version = "v1.2.17"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1442,6 +1442,14 @@ return {
                     Description = "Ignora DISABLE_MOVEMENT e DISABLE_WALKSPEED enquanto PENTA_ONGOING estiver ativo.",
                     Default = false,
                 },
+                {
+                    Kind = "Button",
+                    Setting = "ReleasePentathlonMovement",
+                    Id = "player_release_pentathlon_movement",
+                    Label = "Destravar movimento",
+                    Description = "Reativa os controles e limpa qualquer bloqueio residual depois do Pentatlo.",
+                    ButtonText = "Destravar",
+                },
             },
         },
         {
@@ -2119,6 +2127,9 @@ function Player:Create(options)
     local pentathlonAttributeGuard = false
     local pentathlonRenderStepName = "HMenuPentathlonMovement_" .. tostring(localPlayer.UserId)
     local pentathlonRenderStepBound = false
+    local pentathlonWasActive = false
+    local pentathlonRecoveryUntil = 0
+    local pentathlonRecoveryGeneration = 0
     local playerControls
     local lastControlsEnable = 0
     local lightingOriginals
@@ -3014,8 +3025,12 @@ function Player:Create(options)
     end
 
     local function drivePentathlonMovement()
-        if not settings.PentathlonMovement or not pentathlonIsActive() or settings.ManualSit then return end
-        applyPentathlonMovement()
+        if settings.ManualSit then return end
+        local phaseActive = pentathlonIsActive()
+        local recovering = os.clock() < pentathlonRecoveryUntil
+        if not settings.PentathlonMovement and not recovering then return end
+        if not phaseActive and not recovering then return end
+        if phaseActive and settings.PentathlonMovement then applyPentathlonMovement() end
 
         local humanoid = currentHumanoid()
         local rootPart = currentRootPart()
@@ -3053,24 +3068,65 @@ function Player:Create(options)
 
     local function restorePentathlonMovement()
         if not settings.PentathlonMovement then unbindPentathlonRenderStep() end
-        local phaseStillActive = pentathlonIsActive()
         if pentathlonAttributeOriginals then
-            for name, original in pairs(pentathlonAttributeOriginals) do
-                if phaseStillActive and original.HadValue then
-                    localPlayer:SetAttribute(name, original.Value)
-                else
-                    localPlayer:SetAttribute(name, nil)
-                end
+            for name in pairs(pentathlonAttributeOriginals) do
+                -- Never restore a captured `true`: if the server has already
+                -- ended the round, no later replication may arrive to unlock it.
+                localPlayer:SetAttribute(name, nil)
             end
             pentathlonAttributeOriginals = nil
         end
 
-        for rootPart, originals in pairs(pentathlonRootOriginals) do
+        for rootPart in pairs(pentathlonRootOriginals) do
             if rootPart and rootPart.Parent and not settings.ManualSit then
-                rootPart.Anchored = phaseStillActive and originals.Anchored or false
+                rootPart.Anchored = false
             end
             pentathlonRootOriginals[rootPart] = nil
         end
+
+        local rootPart = currentRootPart()
+        local humanoid = currentHumanoid()
+        if rootPart and not settings.ManualSit then rootPart.Anchored = false end
+        if humanoid and humanoid.Health > 0 and not settings.ManualSit then
+            humanoid.PlatformStand = false
+            humanoid.AutoRotate = true
+            humanoid:Move(Vector3.zero, false)
+        end
+
+        local controls = currentPlayerControls()
+        if controls and type(controls.Enable) == "function" then
+            pcall(controls.Enable, controls)
+        end
+    end
+
+    local function startPentathlonRecovery(duration)
+        pentathlonRecoveryGeneration = pentathlonRecoveryGeneration + 1
+        local generation = pentathlonRecoveryGeneration
+        pentathlonRecoveryUntil = os.clock() + (duration or 8)
+        restorePentathlonMovement()
+        bindPentathlonRenderStep()
+
+        task.spawn(function()
+            while not destroyed and generation == pentathlonRecoveryGeneration
+                and os.clock() < pentathlonRecoveryUntil and not pentathlonIsActive() do
+                local rootPart = currentRootPart()
+                local humanoid = currentHumanoid()
+                if rootPart and not settings.ManualSit then rootPart.Anchored = false end
+                if humanoid and humanoid.Health > 0 and not settings.ManualSit then
+                    humanoid.PlatformStand = false
+                    humanoid.AutoRotate = true
+                end
+                local controls = currentPlayerControls()
+                if controls and type(controls.Enable) == "function" then
+                    pcall(controls.Enable, controls)
+                end
+                task.wait(0.1)
+            end
+            if not destroyed and generation == pentathlonRecoveryGeneration
+                and not settings.PentathlonMovement then
+                unbindPentathlonRenderStep()
+            end
+        end)
     end
 
     for _, attributeName in ipairs({ "DISABLE_MOVEMENT", "DISABLE_WALKSPEED" }) do
@@ -3123,9 +3179,16 @@ function Player:Create(options)
         if settings.ManualSit then applyManualSit() end
         if settings.PentathlonMovement then
             if pentathlonIsActive() then
+                if not pentathlonWasActive then
+                    pentathlonRecoveryGeneration = pentathlonRecoveryGeneration + 1
+                    pentathlonRecoveryUntil = 0
+                end
+                pentathlonWasActive = true
+                bindPentathlonRenderStep()
                 applyPentathlonMovement()
-            elseif pentathlonAttributeOriginals then
-                restorePentathlonMovement()
+            elseif pentathlonWasActive or pentathlonAttributeOriginals then
+                pentathlonWasActive = false
+                startPentathlonRecovery(8)
             end
         end
         if settings.AntiKnockback and os.clock() < impactUntil then
@@ -3192,10 +3255,20 @@ function Player:Create(options)
             settings.PentathlonMovement = value == true
             if settings.PentathlonMovement then
                 bindPentathlonRenderStep()
-                applyPentathlonMovement()
+                if pentathlonIsActive() then
+                    pentathlonWasActive = true
+                    applyPentathlonMovement()
+                else
+                    pentathlonWasActive = false
+                    startPentathlonRecovery(8)
+                end
             else
-                restorePentathlonMovement()
+                pentathlonWasActive = false
+                startPentathlonRecovery(3)
             end
+        elseif name == "ReleasePentathlonMovement" then
+            pentathlonWasActive = false
+            startPentathlonRecovery(10)
         elseif name == "FullBright" then
             local enabled = value == true
             if enabled and not settings.FullBright then
@@ -3237,6 +3310,8 @@ function Player:Create(options)
     function runtime:Destroy()
         if destroyed then return end
         destroyed = true
+        pentathlonRecoveryGeneration = pentathlonRecoveryGeneration + 1
+        pentathlonRecoveryUntil = 0
         unbindPentathlonRenderStep()
 
         for _, connection in ipairs(connections) do

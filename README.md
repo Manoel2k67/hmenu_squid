@@ -1,4 +1,4 @@
-# HMenu Roblox v1.2.16
+# HMenu Roblox v1.2.17
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
@@ -8,7 +8,7 @@ O **Auto Collect** monitora `Workspace.BabyPickup` enquanto o bebê permanecer n
 
 **Auto Cadeira Musical** espera o aviso real da rodada, identificado pelo surgimento de `Trigger.TouchInterest` dentro das cadeiras. Em seguida escolhe uma cadeira livre, simula o toque do `HumanoidRootPart` no Trigger e só considera a operação concluída quando existem `Humanoid.SeatPart`, `Seat.Occupant` e `SeatWeld` correspondentes. A opção não teleporta o personagem; executores sem `firetouchinterest` só usam `Seat:Sit` quando o personagem já está fisicamente próximo.
 
-**Movimento no Pentatlo** atua somente quando `PENTA_ONGOING=true` e `PlayingPentathlon=true`. Enquanto ligado, vigia e devolve imediatamente `DISABLE_MOVEMENT` e `DISABLE_WALKSPEED` para `false`, reativa os controles padrão e remove ancoragem local do personagem. Como segunda camada, WASD/setas comandam diretamente o Humanoid e a velocidade horizontal no fim de cada frame, mesmo quando o controlador da fase tenta consumir a entrada. Espaço continua enviando o salto. Ao desligar durante a fase, restaura os atributos observados antes da ativação; ao terminar a fase, remove o estado temporário para não afetar os próximos jogos.
+**Movimento no Pentatlo** atua quando `PENTA_ONGOING=true` e `PlayingPentathlon=true`. Enquanto ligado, vigia e devolve imediatamente `DISABLE_MOVEMENT` e `DISABLE_WALKSPEED` para `false`, reativa os controles padrão e remove ancoragem local do personagem. Como segunda camada, WASD/setas comandam diretamente o Humanoid e a velocidade horizontal no fim de cada frame, mesmo quando o controlador da fase tenta consumir a entrada. Ao detectar o fim da fase, o módulo limpa os bloqueios, reativa repetidamente o `PlayerModule` e mantém esse controle direto por oito segundos durante a transição. O botão **Destravar movimento** executa a mesma recuperação por dez segundos a qualquer momento.
 
 ## Carregamento
 

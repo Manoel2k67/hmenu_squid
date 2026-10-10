@@ -55,6 +55,14 @@ return {
                     Description = "Ignora DISABLE_MOVEMENT e DISABLE_WALKSPEED enquanto PENTA_ONGOING estiver ativo.",
                     Default = false,
                 },
+                {
+                    Kind = "Button",
+                    Setting = "ReleasePentathlonMovement",
+                    Id = "player_release_pentathlon_movement",
+                    Label = "Destravar movimento",
+                    Description = "Reativa os controles e limpa qualquer bloqueio residual depois do Pentatlo.",
+                    ButtonText = "Destravar",
+                },
             },
         },
         {
