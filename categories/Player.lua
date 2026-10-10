@@ -47,6 +47,14 @@ return {
                     Description = "Desativa localmente a colisão do personagem para atravessar paredes.",
                     Default = false,
                 },
+                {
+                    Kind = "Toggle",
+                    Setting = "PentathlonMovement",
+                    Id = "player_pentathlon_movement",
+                    Label = "Movimento no Pentatlo",
+                    Description = "Ignora DISABLE_MOVEMENT e DISABLE_WALKSPEED enquanto PENTA_ONGOING estiver ativo.",
+                    Default = false,
+                },
             },
         },
         {

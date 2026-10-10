@@ -1,10 +1,12 @@
-# HMenu Roblox v1.2.12
+# HMenu Roblox v1.2.13
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
-O layout, os componentes e os ícones foram preservados. Os temas selecionáveis agora são `Default`, `White` com Yuno e `Black` com Asta; as paletas claras e escuras mantêm textos, botões e controles legíveis sobre os wallpapers. `Teleport` permite mover o personagem local até outro jogador ou para Incinerador, Elevador do lobby, Sala do Frontman e Instalação/Ilha. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push, sentar manualmente e Auto Baby. `Combat` oferece expansão de hitbox com alcance configurável e caixa visual sincronizada com as cores do ESP. `Visuals` identifica os vidros da ponte, mostra nomes, vida, auras e tags coloridas de jogadores e marca somente as portas finais do Hide & Seek. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
+O layout, os componentes e os ícones foram preservados. Os temas selecionáveis agora são `Default`, `White` com Yuno e `Black` com Asta; as paletas claras e escuras mantêm textos, botões e controles legíveis sobre os wallpapers. `Teleport` permite mover o personagem local até outro jogador ou para Incinerador, Elevador do lobby, Sala do Frontman e Instalação/Ilha. `Player` oferece WalkSpeed, Jump Boost, Noclip, movimento experimental no Pentatlo, Full Bright, Anti Ragdoll, Anti Push, sentar manualmente e Auto Baby. `Combat` oferece expansão de hitbox com alcance configurável e caixa visual sincronizada com as cores do ESP. `Visuals` identifica os vidros da ponte, mostra nomes, vida, auras e tags coloridas de jogadores e marca somente as portas finais do Hide & Seek. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
 
 O **Auto Collect** monitora `Workspace.BabyPickup` enquanto o bebê permanecer no chão e tenta `Trigger.PickupPrompt` até `HasBaby=true` confirmar a coleta. O módulo nunca teleporta ou move o personagem. Internamente, amplia localmente `MaxActivationDistance` para `1000`, desativa linha de visão, aguarda um frame e tenta assinaturas compatíveis de `fireproximityprompt`; como fallback, reproduz o ciclo normal de segurar e soltar o prompt. Prompts ainda ausentes ou desabilitados continuam sendo observados, em vez de serem descartados depois da primeira falha. A opção opera silenciosamente e seu estado é preservado entre recarregamentos do menu na mesma sessão do executor.
+
+**Movimento no Pentatlo** atua somente quando `PENTA_ONGOING=true` e `PlayingPentathlon=true`. Enquanto ligado, mantém `DISABLE_MOVEMENT` e `DISABLE_WALKSPEED` em `false`, reativa os controles padrão e remove ancoragem local do personagem. Ao desligar durante a fase, restaura os atributos observados antes da ativação; ao terminar a fase, remove o estado temporário para não afetar os próximos jogos.
 
 ## Carregamento
 

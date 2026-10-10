@@ -17,6 +17,10 @@ function Player:Create(options)
     local collisionOriginals = setmetatable({}, { __mode = "k" })
     local ragdollAttributeOriginals = setmetatable({}, { __mode = "k" })
     local manualSitRootOriginals = setmetatable({}, { __mode = "k" })
+    local pentathlonRootOriginals = setmetatable({}, { __mode = "k" })
+    local pentathlonAttributeOriginals
+    local playerControls
+    local lastControlsEnable = 0
     local lightingOriginals
     local impactUntil = 0
     local destroyed = false
@@ -27,6 +31,7 @@ function Player:Create(options)
         FullBright = false,
         AntiRagdoll = false,
         AntiKnockback = false,
+        PentathlonMovement = false,
         ManualSit = false,
         AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
     }
@@ -719,6 +724,88 @@ function Player:Create(options)
         end
     end
 
+    local function pentathlonIsActive()
+        return localPlayer:GetAttribute("PENTA_ONGOING") == true
+            and localPlayer:GetAttribute("PlayingPentathlon") == true
+    end
+
+    local function currentPlayerControls()
+        if playerControls then return playerControls end
+        local playerScripts = localPlayer:FindFirstChild("PlayerScripts")
+        local playerModule = playerScripts and playerScripts:FindFirstChild("PlayerModule")
+        if not playerModule or not playerModule:IsA("ModuleScript") then return nil end
+
+        local ok, module = pcall(require, playerModule)
+        if not ok or type(module) ~= "table" or type(module.GetControls) ~= "function" then return nil end
+        local controlsOk, controls = pcall(module.GetControls, module)
+        if controlsOk and controls then playerControls = controls end
+        return playerControls
+    end
+
+    local function rememberPentathlonAttributes()
+        if pentathlonAttributeOriginals then return end
+        pentathlonAttributeOriginals = {}
+        for _, name in ipairs({ "DISABLE_MOVEMENT", "DISABLE_WALKSPEED" }) do
+            local value = localPlayer:GetAttribute(name)
+            pentathlonAttributeOriginals[name] = {
+                HadValue = value ~= nil,
+                Value = value,
+            }
+        end
+    end
+
+    local function applyPentathlonMovement()
+        if not pentathlonIsActive() then return end
+        rememberPentathlonAttributes()
+
+        localPlayer:SetAttribute("DISABLE_MOVEMENT", false)
+        localPlayer:SetAttribute("DISABLE_WALKSPEED", false)
+
+        local humanoid = currentHumanoid()
+        if humanoid and humanoid.Health > 0 then
+            humanoid.PlatformStand = false
+            humanoid.AutoRotate = true
+            if settings.WalkSpeed ~= nil then humanoid.WalkSpeed = settings.WalkSpeed end
+        end
+
+        local rootPart = currentRootPart()
+        if rootPart and not settings.ManualSit then
+            if pentathlonRootOriginals[rootPart] == nil then
+                pentathlonRootOriginals[rootPart] = { Anchored = rootPart.Anchored }
+            end
+            rootPart.Anchored = false
+        end
+
+        if os.clock() - lastControlsEnable >= 0.25 then
+            lastControlsEnable = os.clock()
+            local controls = currentPlayerControls()
+            if controls and type(controls.Enable) == "function" then
+                pcall(controls.Enable, controls)
+            end
+        end
+    end
+
+    local function restorePentathlonMovement()
+        local phaseStillActive = pentathlonIsActive()
+        if pentathlonAttributeOriginals then
+            for name, original in pairs(pentathlonAttributeOriginals) do
+                if phaseStillActive and original.HadValue then
+                    localPlayer:SetAttribute(name, original.Value)
+                else
+                    localPlayer:SetAttribute(name, nil)
+                end
+            end
+            pentathlonAttributeOriginals = nil
+        end
+
+        for rootPart, originals in pairs(pentathlonRootOriginals) do
+            if rootPart and rootPart.Parent and not settings.ManualSit then
+                rootPart.Anchored = phaseStillActive and originals.Anchored or false
+            end
+            pentathlonRootOriginals[rootPart] = nil
+        end
+    end
+
     local function beginImpactWindow()
         if not settings.AntiKnockback then return end
         impactUntil = math.max(impactUntil, os.clock() + 0.35)
@@ -757,6 +844,13 @@ function Player:Create(options)
         if settings.FullBright then applyFullBright() end
         if settings.AntiRagdoll then applyAntiRagdoll() end
         if settings.ManualSit then applyManualSit() end
+        if settings.PentathlonMovement then
+            if pentathlonIsActive() then
+                applyPentathlonMovement()
+            elseif pentathlonAttributeOriginals then
+                restorePentathlonMovement()
+            end
+        end
         if settings.AntiKnockback and os.clock() < impactUntil then
             neutralizeKnockback()
         end
@@ -771,6 +865,7 @@ function Player:Create(options)
                 applyMovement()
                 if settings.AntiRagdoll then applyAntiRagdoll() end
                 if settings.ManualSit then applyManualSit() end
+                if settings.PentathlonMovement then applyPentathlonMovement() end
             end
         end)
     end)
@@ -804,6 +899,9 @@ function Player:Create(options)
         elseif name == "Noclip" then
             settings.Noclip = value == true
             if settings.Noclip then applyNoclip() else restoreCollision() end
+        elseif name == "PentathlonMovement" then
+            settings.PentathlonMovement = value == true
+            if settings.PentathlonMovement then applyPentathlonMovement() else restorePentathlonMovement() end
         elseif name == "FullBright" then
             local enabled = value == true
             if enabled and not settings.FullBright then
@@ -847,6 +945,7 @@ function Player:Create(options)
         restoreCollision()
         restoreLighting()
         restoreAntiRagdoll()
+        restorePentathlonMovement()
         if settings.ManualSit then standUp() end
 
         for humanoid, originals in pairs(humanoidOriginals) do
