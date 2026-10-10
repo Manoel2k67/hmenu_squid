@@ -120,6 +120,15 @@ if ($LuauCompiler) {
             if ($LASTEXITCODE -ne 0) {
                 $failures.Add("Teste de contrato do bundle falhou.")
             }
+            $chairPrelude = $strictUtf8.GetString([IO.File]::ReadAllBytes((Join-Path $repoRoot "tests\MusicalChairs.prelude.luau")))
+            $playerSource = $strictUtf8.GetString([IO.File]::ReadAllBytes((Join-Path $repoRoot "runtime\Player.lua")))
+            $chairSource = $chairPrelude + "`nlocal Player = (function()`n" + $playerSource +
+                "`nend)()`nrunMusicalChairTests(Player)`n"
+            [IO.File]::WriteAllText($contractPath, $chairSource, $utf8NoBom)
+            & $luauRuntime $contractPath
+            if ($LASTEXITCODE -ne 0) {
+                $failures.Add("Teste de regressao das cadeiras musicais falhou.")
+            }
         } finally {
             if (Test-Path -LiteralPath $contractPath) {
                 Remove-Item -LiteralPath $contractPath -Force

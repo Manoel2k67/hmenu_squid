@@ -106,12 +106,29 @@ return {
             Icon = "farm",
             Controls = {
                 {
+                    Kind = "Dropdown",
+                    Setting = "MusicalChairMode",
+                    Id = "player_musical_chair_mode",
+                    Label = "Modo das cadeiras",
+                    Options = { "Perto (4 studs)", "Longe experimental" },
+                    Default = "Perto (4 studs)",
+                    Description = "Longe experimental tenta uma cadeira a até 160 studs, uma vez por janela de sentar. Pode falhar ou causar deslocamento.",
+                },
+                {
                     Kind = "Toggle",
                     Setting = "AutoMusicalChairs",
                     Id = "player_auto_musical_chairs",
                     Label = "Auto cadeira musical",
-                    Description = "Ao aparecer TAKE A SEAT, aciona o Trigger de uma cadeira livre e confirma SeatPart, Occupant e SeatWeld reais.",
+                    Description = "Ativa o modo selecionado quando as cadeiras são liberadas. O modo experimental precisa ser escolhido acima.",
                     Default = false,
+                },
+                {
+                    Kind = "Button",
+                    Setting = "CopyMusicalChairDiagnostics",
+                    Id = "player_copy_musical_chair_diagnostics",
+                    Label = "Diagnóstico das cadeiras",
+                    Description = "Copia tentativas, resultado observado e deslocamento para comparar depois do teste.",
+                    ButtonText = "Copiar diagnóstico",
                 },
                 {
                     Kind = "Toggle",

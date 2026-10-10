@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.20"
+Config.Version = "v1.2.22"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1493,12 +1493,29 @@ return {
             Icon = "farm",
             Controls = {
                 {
+                    Kind = "Dropdown",
+                    Setting = "MusicalChairMode",
+                    Id = "player_musical_chair_mode",
+                    Label = "Modo das cadeiras",
+                    Options = { "Perto (4 studs)", "Longe experimental" },
+                    Default = "Perto (4 studs)",
+                    Description = "Longe experimental tenta uma cadeira a até 160 studs, uma vez por janela de sentar. Pode falhar ou causar deslocamento.",
+                },
+                {
                     Kind = "Toggle",
                     Setting = "AutoMusicalChairs",
                     Id = "player_auto_musical_chairs",
                     Label = "Auto cadeira musical",
-                    Description = "Ao aparecer TAKE A SEAT, aciona o Trigger de uma cadeira livre e confirma SeatPart, Occupant e SeatWeld reais.",
+                    Description = "Ativa o modo selecionado quando as cadeiras são liberadas. O modo experimental precisa ser escolhido acima.",
                     Default = false,
+                },
+                {
+                    Kind = "Button",
+                    Setting = "CopyMusicalChairDiagnostics",
+                    Id = "player_copy_musical_chair_diagnostics",
+                    Label = "Diagnóstico das cadeiras",
+                    Description = "Copia tentativas, resultado observado e deslocamento para comparar depois do teste.",
+                    ButtonText = "Copiar diagnóstico",
                 },
                 {
                     Kind = "Toggle",
@@ -2113,6 +2130,10 @@ local Workspace = game:GetService("Workspace")
 local Player = {}
 local AUTO_COLLECT_BABY_KEY = "__HMENU_AUTO_COLLECT_BABY"
 local AUTO_COMPLETE_HONEYCOMB_KEY = "__HMENU_AUTO_COMPLETE_HONEYCOMB"
+local MUSICAL_CHAIR_REACH = 4
+local MUSICAL_CHAIR_EXPERIMENT_REACH = 160
+local MUSICAL_CHAIR_NEAR_MODE = "Perto (4 studs)"
+local MUSICAL_CHAIR_EXPERIMENT_MODE = "Longe experimental"
 
 function Player:Create(options)
     options = options or {}
@@ -2146,6 +2167,7 @@ function Player:Create(options)
         ForceMovement = false,
         ManualSit = false,
         AutoMusicalChairs = false,
+        MusicalChairMode = MUSICAL_CHAIR_NEAR_MODE,
         AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
     }
     local babyPickupWorkers = setmetatable({}, { __mode = "k" })
@@ -2155,8 +2177,10 @@ function Player:Create(options)
     local honeycombMousePressed = false
     local musicalChairGeneration = 0
     local musicalChairWarningShown = false
-    local musicalChairAttempting = false
-    local musicalChairCooldowns = setmetatable({}, { __mode = "k" })
+    local musicalChairAttempting = nil
+    local musicalChairAttempts = setmetatable({}, { __mode = "k" })
+    local musicalChairExperimentWindow = {}
+    local musicalChairDiagnostics = {}
 
     local runtime = {}
 
@@ -2289,8 +2313,17 @@ function Player:Create(options)
         if not seat or not seat:IsA("Seat") or not trigger or not trigger:IsA("BasePart") then
             return nil, nil
         end
-        if not trigger:FindFirstChildOfClass("TouchTransmitter") then return nil, nil end
-        return seat, trigger
+        local touch = trigger:FindFirstChildOfClass("TouchTransmitter")
+        if not trigger.CanTouch or not touch then return nil, nil end
+        return seat, trigger, touch
+    end
+
+    local function chairWeldBelongsTo(weld, seat, character)
+        if not weld or not weld:IsA("Weld") or not weld.Enabled or not character then return false end
+        local otherPart
+        if weld.Part0 == seat then otherPart = weld.Part1
+        elseif weld.Part1 == seat then otherPart = weld.Part0 end
+        return otherPart ~= nil and otherPart:IsDescendantOf(character)
     end
 
     local function isReallySeated(humanoid, chairs)
@@ -2298,26 +2331,68 @@ function Player:Create(options)
         if not seat or not chairs or not seat:IsDescendantOf(chairs) then return false end
         if seat.Occupant ~= humanoid then return false end
         local weld = seat:FindFirstChild("SeatWeld")
-        return weld ~= nil and weld:IsA("Weld")
+        return chairWeldBelongsTo(weld, seat, humanoid.Parent)
     end
 
-    local function nearestAvailableChair(chairs, rootPart)
-        local bestSeat
-        local bestTrigger
-        local bestDistance = math.huge
-        local now = os.clock()
+    local function hasChairBinding(humanoid, chairs)
+        if not humanoid then return false end
+        -- Replication can deliver these fields in different frames. Even a
+        -- partial binding must stop new touches and movement overrides.
+        if humanoid.SeatPart then return true end
+        if not chairs then return false end
         for _, model in ipairs(chairs:GetChildren()) do
-            local seat, trigger = chairParts(model)
-            if seat and seat.Occupant == nil and (musicalChairCooldowns[seat] or 0) <= now then
-                local distance = (trigger.Position - rootPart.Position).Magnitude
-                if distance < bestDistance then
-                    bestDistance = distance
-                    bestSeat = seat
-                    bestTrigger = trigger
+            local seat = model:FindFirstChild("Seat")
+            if seat and seat:IsA("Seat") then
+                if seat.Occupant == humanoid
+                    or chairWeldBelongsTo(seat:FindFirstChild("SeatWeld"), seat, humanoid.Parent) then
+                    return true
                 end
             end
         end
-        return bestSeat, bestTrigger, bestDistance
+        return false
+    end
+
+    local function logMusicalChair(message)
+        local line = string.format("[%.2fs] %s", os.clock(), message)
+        table.insert(musicalChairDiagnostics, line)
+        if #musicalChairDiagnostics > 60 then table.remove(musicalChairDiagnostics, 1) end
+        print("[HMenu Cadeiras] " .. line)
+    end
+
+    local function experimentUsedThisWindow(chairs)
+        for _, touch in ipairs(musicalChairExperimentWindow) do
+            if touch:IsDescendantOf(chairs) then return true end
+        end
+        return false
+    end
+
+    local function rememberExperimentWindow(chairs)
+        musicalChairExperimentWindow = {}
+        for _, model in ipairs(chairs:GetChildren()) do
+            local _, _, touch = chairParts(model)
+            if touch then table.insert(musicalChairExperimentWindow, touch) end
+        end
+    end
+
+    local function nearestAvailableChair(chairs, rootPart, reach)
+        local bestSeat
+        local bestTrigger
+        local bestTouch
+        local bestDistance = math.huge
+        for _, model in ipairs(chairs:GetChildren()) do
+            local seat, trigger, touch = chairParts(model)
+            if seat and seat.Occupant == nil and not seat:FindFirstChild("SeatWeld")
+                and not musicalChairAttempts[touch] then
+                local distance = (trigger.Position - rootPart.Position).Magnitude
+                if distance <= reach and distance < bestDistance then
+                    bestDistance = distance
+                    bestSeat = seat
+                    bestTrigger = trigger
+                    bestTouch = touch
+                end
+            end
+        end
+        return bestSeat, bestTrigger, bestTouch, bestDistance
     end
 
     local function attemptMusicalChair()
@@ -2328,39 +2403,92 @@ function Player:Create(options)
         local humanoid = currentHumanoid()
         local rootPart = currentRootPart()
         local chairs = musicalChairsFolder()
-        if not humanoid or humanoid.Health <= 0 or not rootPart or not chairs then return false end
+        if not humanoid or humanoid.Health <= 0 or not rootPart or rootPart.Anchored or not chairs then return false end
+        if localPlayer:GetAttribute("Dead") == true or settings.ManualSit then return false end
         if isReallySeated(humanoid, chairs) then return true end
+        if hasChairBinding(humanoid, chairs) then return false end
 
-        local seat, trigger, distance = nearestAvailableChair(chairs, rootPart)
+        local experimental = settings.MusicalChairMode == MUSICAL_CHAIR_EXPERIMENT_MODE
+        if experimental and experimentUsedThisWindow(chairs) then return false end
+        local reach = experimental and MUSICAL_CHAIR_EXPERIMENT_REACH or MUSICAL_CHAIR_REACH
+        local seat, trigger, touch, distance = nearestAvailableChair(chairs, rootPart, reach)
         if not seat or not trigger then return false end
 
-        musicalChairAttempting = true
-        musicalChairCooldowns[seat] = os.clock() + 1.5
         local fireTouch = executorFunction("firetouchinterest")
-        if fireTouch then
-            pcall(fireTouch, rootPart, trigger, 0)
-            RunService.Heartbeat:Wait()
-            pcall(fireTouch, rootPart, trigger, 1)
-        elseif distance <= 8 then
-            -- Without a touch helper, only request a real seat that the
-            -- character has physically reached.
-            pcall(seat.Sit, seat, humanoid)
-        elseif not musicalChairWarningShown then
-            musicalChairWarningShown = true
-            warn("[HMenu] Auto cadeira precisa de firetouchinterest neste executor.")
+        if not fireTouch then
+            if not musicalChairWarningShown then
+                musicalChairWarningShown = true
+                warn("[HMenu] Auto cadeira: toque automatico indisponivel; encoste no Trigger da cadeira livre.")
+                logMusicalChair("Toque automatico indisponivel no executor; nenhuma tentativa enviada.")
+            end
+            return false
         end
 
-        -- Give the server time to create Occupant/SeatWeld. Do not touch a
-        -- second chair while the first request is still being resolved.
-        local confirmationDeadline = os.clock() + 0.4
+        local attempt = {}
+        local generation = musicalChairGeneration
+        musicalChairAttempting = attempt
+        -- One request per activation, even after toggling the menu. A new
+        -- round replaces TouchInterest and becomes eligible automatically.
+        musicalChairAttempts[touch] = true
+        if experimental then rememberExperimentWindow(chairs) end
+        local startPosition = rootPart.Position
+        local maxDisplacement = 0
+        local maxSpeed = 0
+        local function sampleMotion()
+            maxDisplacement = math.max(maxDisplacement, (rootPart.Position - startPosition).Magnitude)
+            maxSpeed = math.max(maxSpeed, rootPart.AssemblyLinearVelocity.Magnitude)
+        end
+        local mode = experimental and "longe/toque invertido" or "perto/toque normal"
+        logMusicalChair(string.format("Tentativa: %s | cadeira=%s | distancia=%.1f studs", mode, seat.Parent.Name, distance))
+        -- Do not leave the executor's touch-end pending across a physics
+        -- frame while the character can move or the seat can bind.
+        -- Experimental hypothesis: reversing the pair may behave differently
+        -- in this executor. It does not establish server acceptance.
+        local firstPart = experimental and trigger or rootPart
+        local secondPart = experimental and rootPart or trigger
+        local touchOk, touchError = pcall(fireTouch, firstPart, secondPart, 0)
+        sampleMotion()
+        local endOk, endError = pcall(fireTouch, firstPart, secondPart, 1)
+        sampleMotion()
+        if not touchOk or not endOk then
+            warn("[HMenu] Auto cadeira: falha no toque: " .. tostring(touchError or endError))
+            logMusicalChair("Erro do executor: " .. tostring(touchError or endError))
+        end
+
+        local confirmationDeadline = os.clock() + (experimental and 2 or 1)
         local seated = isReallySeated(humanoid, chairs)
-        while not seated and os.clock() < confirmationDeadline
-            and not destroyed and settings.AutoMusicalChairs and seat.Parent do
-            if seat.Occupant ~= nil and seat.Occupant ~= humanoid then break end
+        local confirmedSince = seated and os.clock() or nil
+        local outcome = "sem confirmacao local"
+        local function stillValid()
+            return not destroyed and settings.AutoMusicalChairs and generation == musicalChairGeneration
+            and currentHumanoid() == humanoid and currentRootPart() == rootPart
+            and humanoid.Health > 0 and localPlayer:GetAttribute("Dead") ~= true
+            and localPlayer:GetAttribute("PlayingMusicalChairs") == true
+            and musicalChairsFolder() == chairs and seat:IsDescendantOf(chairs)
+            and touch.Parent == trigger
+        end
+        while stillValid() and os.clock() < confirmationDeadline do
+            sampleMotion()
+            if seated and (not experimental or os.clock() - confirmedSince >= 0.5) then
+                outcome = experimental and "vinculo local estavel por 0.5s" or "vinculo local confirmado"
+                break
+            end
+            if seat.Occupant ~= nil and seat.Occupant ~= humanoid then
+                outcome = "alvo ocupado por outro jogador"
+                break
+            end
             RunService.Heartbeat:Wait()
             seated = isReallySeated(humanoid, chairs)
+            if seated then confirmedSince = confirmedSince or os.clock()
+            else confirmedSince = nil end
         end
-        musicalChairAttempting = false
+        if not stillValid() then outcome = "observacao cancelada (opcao, personagem ou fase mudou)"
+        elseif outcome == "sem confirmacao local" and hasChairBinding(humanoid, chairs) then
+            outcome = "vinculo local parcial ou ainda nao estabilizado"
+        end
+        logMusicalChair(string.format("Resultado: %s | deslocamentoMax=%.1f studs | velocidadeMax=%.1f studs/s | nao comprova aprovacao do servidor",
+            outcome, maxDisplacement, maxSpeed))
+        if musicalChairAttempting == attempt then musicalChairAttempting = nil end
         return seated
     end
 
@@ -2368,8 +2496,6 @@ function Player:Create(options)
         musicalChairGeneration = musicalChairGeneration + 1
         local generation = musicalChairGeneration
         musicalChairWarningShown = false
-        musicalChairAttempting = false
-        musicalChairCooldowns = setmetatable({}, { __mode = "k" })
         task.spawn(function()
             while not destroyed and settings.AutoMusicalChairs and generation == musicalChairGeneration do
                 attemptMusicalChair()
@@ -2855,6 +2981,7 @@ function Player:Create(options)
         local character = currentCharacter()
         local humanoid = currentHumanoid()
         if not character or not humanoid or humanoid.Health <= 0 then return end
+        if hasChairBinding(humanoid, musicalChairsFolder()) then return end
 
         rememberRagdollAttribute(character)
         rememberHumanoid(humanoid)
@@ -2896,6 +3023,7 @@ function Player:Create(options)
     end
 
     local function neutralizeKnockback()
+        if hasChairBinding(currentHumanoid(), musicalChairsFolder()) then return end
         local rootPart = currentRootPart()
         if not rootPart then return end
 
@@ -3050,7 +3178,7 @@ function Player:Create(options)
         local humanoid = currentHumanoid()
         local rootPart = currentRootPart()
         if not humanoid or humanoid.Health <= 0 or not rootPart then return end
-        if humanoid.SeatPart then return end
+        if hasChairBinding(humanoid, musicalChairsFolder()) then return end
 
         if settings.ForceMovement then
             rootPart.Anchored = false
@@ -3329,14 +3457,28 @@ function Player:Create(options)
             settings.ManualSit = value == true
             if settings.ManualSit then applyManualSit() else standUp() end
         elseif name == "AutoMusicalChairs" then
-            settings.AutoMusicalChairs = value == true
+            local enabled = value == true
+            if settings.AutoMusicalChairs == enabled then return end
+            settings.AutoMusicalChairs = enabled
+            logMusicalChair(enabled and ("Ativado: " .. settings.MusicalChairMode .. "; aguardando cadeira livre e janela TAKE A SEAT.") or "Desativado.")
             if settings.AutoMusicalChairs then
                 startMusicalChairMonitor()
             else
                 musicalChairGeneration = musicalChairGeneration + 1
-                musicalChairAttempting = false
-                musicalChairCooldowns = setmetatable({}, { __mode = "k" })
             end
+        elseif name == "MusicalChairMode" then
+            if value ~= MUSICAL_CHAIR_NEAR_MODE and value ~= MUSICAL_CHAIR_EXPERIMENT_MODE then return end
+            if settings.MusicalChairMode == value then return end
+            settings.MusicalChairMode = value
+            logMusicalChair("Modo: " .. value .. ". Experimental usa uma tentativa por janela, ate 160 studs.")
+            if settings.AutoMusicalChairs then startMusicalChairMonitor() end
+        elseif name == "CopyMusicalChairDiagnostics" then
+            local report = "HMenu - Diagnostico das cadeiras\nModo: " .. settings.MusicalChairMode
+                .. "\nSinais locais nao comprovam aceitacao pelo servidor.\n" .. table.concat(musicalChairDiagnostics, "\n")
+            local copy = executorFunction("setclipboard") or executorFunction("toclipboard")
+            local copied = copy and pcall(copy, report)
+            if copied then print("[HMenu Cadeiras] Diagnostico copiado.")
+            else warn("[HMenu Cadeiras] Clipboard indisponivel.\n" .. report) end
         elseif name == "AutoCollectBaby" then
             settings.AutoCollectBaby = value == true
             rawset(_G, AUTO_COLLECT_BABY_KEY, settings.AutoCollectBaby)
