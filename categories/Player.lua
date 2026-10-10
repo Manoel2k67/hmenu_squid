@@ -110,7 +110,7 @@ return {
                     Setting = "AutoCollectBaby",
                     Id = "player_auto_collect_baby",
                     Label = "Auto coletar bebê",
-                    Description = "Enquanto o bebê estiver no chão, repete o PickupPrompt até confirmar HasBaby. Nunca usa teleporte.",
+                    Description = "Repete o PickupPrompt sem depender da câmera até confirmar HasBaby. Nunca usa teleporte.",
                     Default = rawget(_G, "__HMENU_AUTO_COLLECT_BABY") == true,
                 },
             },

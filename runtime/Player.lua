@@ -99,6 +99,7 @@ function Player:Create(options)
 
                     pcall(function()
                         prompt.MaxActivationDistance = 1000
+                        prompt.HoldDuration = 0
                         prompt.RequiresLineOfSight = false
                     end)
                     RunService.Heartbeat:Wait()
@@ -106,18 +107,9 @@ function Player:Create(options)
                     if stillValid() and prompt.Parent and prompt.Enabled then
                         if type(fireproximityprompt) == "function" then
                             pcall(fireproximityprompt, prompt, 0, true)
-                            task.wait(0.12)
+                            task.wait(0.08)
                             if stillValid() then pcall(fireproximityprompt, prompt, 0) end
                             if stillValid() then pcall(fireproximityprompt, prompt) end
-                        end
-
-                        -- Fallback pelo mesmo ciclo de entrada usado ao segurar E.
-                        if stillValid() then
-                            local holdStarted = pcall(function() prompt:InputHoldBegin() end)
-                            if holdStarted then
-                                task.wait(math.max(tonumber(originalHoldDuration) or 0, 0.05) + 0.05)
-                                pcall(function() prompt:InputHoldEnd() end)
-                            end
                         end
                     end
 
@@ -128,7 +120,7 @@ function Player:Create(options)
                     end)
                 end
 
-                if stillValid() then task.wait(0.45) end
+                if stillValid() then task.wait(0.25) end
             end
 
             babyPickupWorkers[model] = nil

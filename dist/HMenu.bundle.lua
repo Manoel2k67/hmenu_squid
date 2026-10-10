@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.13"
+Config.Version = "v1.2.14"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1497,7 +1497,7 @@ return {
                     Setting = "AutoCollectBaby",
                     Id = "player_auto_collect_baby",
                     Label = "Auto coletar bebê",
-                    Description = "Enquanto o bebê estiver no chão, repete o PickupPrompt até confirmar HasBaby. Nunca usa teleporte.",
+                    Description = "Repete o PickupPrompt sem depender da câmera até confirmar HasBaby. Nunca usa teleporte.",
                     Default = rawget(_G, "__HMENU_AUTO_COLLECT_BABY") == true,
                 },
             },
@@ -2196,6 +2196,7 @@ function Player:Create(options)
 
                     pcall(function()
                         prompt.MaxActivationDistance = 1000
+                        prompt.HoldDuration = 0
                         prompt.RequiresLineOfSight = false
                     end)
                     RunService.Heartbeat:Wait()
@@ -2203,18 +2204,9 @@ function Player:Create(options)
                     if stillValid() and prompt.Parent and prompt.Enabled then
                         if type(fireproximityprompt) == "function" then
                             pcall(fireproximityprompt, prompt, 0, true)
-                            task.wait(0.12)
+                            task.wait(0.08)
                             if stillValid() then pcall(fireproximityprompt, prompt, 0) end
                             if stillValid() then pcall(fireproximityprompt, prompt) end
-                        end
-
-                        -- Fallback pelo mesmo ciclo de entrada usado ao segurar E.
-                        if stillValid() then
-                            local holdStarted = pcall(function() prompt:InputHoldBegin() end)
-                            if holdStarted then
-                                task.wait(math.max(tonumber(originalHoldDuration) or 0, 0.05) + 0.05)
-                                pcall(function() prompt:InputHoldEnd() end)
-                            end
                         end
                     end
 
@@ -2225,7 +2217,7 @@ function Player:Create(options)
                     end)
                 end
 
-                if stillValid() then task.wait(0.45) end
+                if stillValid() then task.wait(0.25) end
             end
 
             babyPickupWorkers[model] = nil
