@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.15"
+Config.Version = "v1.2.16"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1486,10 +1486,10 @@ return {
             Controls = {
                 {
                     Kind = "Toggle",
-                    Setting = "ManualSit",
-                    Id = "player_manual_sit",
-                    Label = "Sentar manualmente",
-                    Description = "Ligado senta e mantém a posição atual; desligado faz levantar. Controle manual para testes.",
+                    Setting = "AutoMusicalChairs",
+                    Id = "player_auto_musical_chairs",
+                    Label = "Auto cadeira musical",
+                    Description = "Ao aparecer TAKE A SEAT, aciona o Trigger de uma cadeira livre e confirma SeatPart, Occupant e SeatWeld reais.",
                     Default = false,
                 },
                 {
@@ -2133,6 +2133,7 @@ function Player:Create(options)
         AntiKnockback = false,
         PentathlonMovement = false,
         ManualSit = false,
+        AutoMusicalChairs = false,
         AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
     }
     local babyPickupWorkers = setmetatable({}, { __mode = "k" })
@@ -2140,6 +2141,9 @@ function Player:Create(options)
     local attemptedHoneycombModels = setmetatable({}, { __mode = "k" })
     local honeycombAttemptGeneration = 0
     local honeycombMousePressed = false
+    local musicalChairGeneration = 0
+    local musicalChairWarningShown = false
+    local musicalChairAttempting = false
 
     local runtime = {}
 
@@ -2256,6 +2260,96 @@ function Player:Create(options)
         end
         local value = rawget(environment, name)
         return type(value) == "function" and value or nil
+    end
+
+    local function musicalChairsFolder()
+        local map = Workspace:FindFirstChild("Map")
+        local musicalChairs = map and map:FindFirstChild("MusicalChairs")
+        local chairs = musicalChairs and musicalChairs:FindFirstChild("Chairs")
+        return chairs
+    end
+
+    local function chairParts(model)
+        if not model or not model:IsA("Model") then return nil, nil end
+        local seat = model:FindFirstChild("Seat")
+        local trigger = model:FindFirstChild("Trigger")
+        if not seat or not seat:IsA("Seat") or not trigger or not trigger:IsA("BasePart") then
+            return nil, nil
+        end
+        if not trigger:FindFirstChildOfClass("TouchTransmitter") then return nil, nil end
+        return seat, trigger
+    end
+
+    local function isReallySeated(humanoid, chairs)
+        local seat = humanoid and humanoid.SeatPart
+        if not seat or not chairs or not seat:IsDescendantOf(chairs) then return false end
+        if seat.Occupant ~= humanoid then return false end
+        local weld = seat:FindFirstChild("SeatWeld")
+        return weld ~= nil and weld:IsA("Weld")
+    end
+
+    local function nearestAvailableChair(chairs, rootPart)
+        local bestSeat
+        local bestTrigger
+        local bestDistance = math.huge
+        for _, model in ipairs(chairs:GetChildren()) do
+            local seat, trigger = chairParts(model)
+            if seat and seat.Occupant == nil then
+                local distance = (trigger.Position - rootPart.Position).Magnitude
+                if distance < bestDistance then
+                    bestDistance = distance
+                    bestSeat = seat
+                    bestTrigger = trigger
+                end
+            end
+        end
+        return bestSeat, bestTrigger, bestDistance
+    end
+
+    local function attemptMusicalChair()
+        if destroyed or not settings.AutoMusicalChairs then return false end
+        if localPlayer:GetAttribute("PlayingMusicalChairs") ~= true then return false end
+        if musicalChairAttempting then return false end
+
+        local humanoid = currentHumanoid()
+        local rootPart = currentRootPart()
+        local chairs = musicalChairsFolder()
+        if not humanoid or humanoid.Health <= 0 or not rootPart or not chairs then return false end
+        if isReallySeated(humanoid, chairs) then return true end
+
+        local seat, trigger, distance = nearestAvailableChair(chairs, rootPart)
+        if not seat or not trigger then return false end
+
+        musicalChairAttempting = true
+        local fireTouch = executorFunction("firetouchinterest")
+        if fireTouch then
+            pcall(fireTouch, rootPart, trigger, 0)
+            RunService.Heartbeat:Wait()
+            pcall(fireTouch, rootPart, trigger, 1)
+        elseif distance <= 8 then
+            -- Without a touch helper, only request a real seat that the
+            -- character has physically reached.
+            pcall(seat.Sit, seat, humanoid)
+        elseif not musicalChairWarningShown then
+            musicalChairWarningShown = true
+            warn("[HMenu] Auto cadeira precisa de firetouchinterest neste executor.")
+        end
+
+        local seated = isReallySeated(humanoid, chairs)
+        musicalChairAttempting = false
+        return seated
+    end
+
+    local function startMusicalChairMonitor()
+        musicalChairGeneration = musicalChairGeneration + 1
+        local generation = musicalChairGeneration
+        musicalChairWarningShown = false
+        task.spawn(function()
+            while not destroyed and settings.AutoMusicalChairs and generation == musicalChairGeneration do
+                attemptMusicalChair()
+                task.wait(0.08)
+            end
+        end)
     end
 
     local function virtualInputManager()
@@ -3066,6 +3160,18 @@ function Player:Create(options)
         end
     end)
 
+    connect(Workspace.DescendantAdded, function(descendant)
+        if destroyed or not settings.AutoMusicalChairs then return end
+        if descendant:IsA("TouchTransmitter") then
+            local trigger = descendant.Parent
+            local chair = trigger and trigger.Parent
+            local chairs = musicalChairsFolder()
+            if trigger and trigger.Name == "Trigger" and chairs and chair and chair.Parent == chairs then
+                task.defer(attemptMusicalChair)
+            end
+        end
+    end)
+
     if settings.AutoCollectBaby then
         startBabyMonitor()
     end
@@ -3108,6 +3214,14 @@ function Player:Create(options)
         elseif name == "ManualSit" then
             settings.ManualSit = value == true
             if settings.ManualSit then applyManualSit() else standUp() end
+        elseif name == "AutoMusicalChairs" then
+            settings.AutoMusicalChairs = value == true
+            if settings.AutoMusicalChairs then
+                startMusicalChairMonitor()
+            else
+                musicalChairGeneration = musicalChairGeneration + 1
+                musicalChairAttempting = false
+            end
         elseif name == "AutoCollectBaby" then
             settings.AutoCollectBaby = value == true
             rawset(_G, AUTO_COLLECT_BABY_KEY, settings.AutoCollectBaby)
@@ -3130,6 +3244,7 @@ function Player:Create(options)
         end
         connections = {}
         honeycombAttemptGeneration = honeycombAttemptGeneration + 1
+        musicalChairGeneration = musicalChairGeneration + 1
         releaseHoneycombMouse()
         restoreCollision()
         restoreLighting()

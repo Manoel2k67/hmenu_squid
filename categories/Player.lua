@@ -99,10 +99,10 @@ return {
             Controls = {
                 {
                     Kind = "Toggle",
-                    Setting = "ManualSit",
-                    Id = "player_manual_sit",
-                    Label = "Sentar manualmente",
-                    Description = "Ligado senta e mantém a posição atual; desligado faz levantar. Controle manual para testes.",
+                    Setting = "AutoMusicalChairs",
+                    Id = "player_auto_musical_chairs",
+                    Label = "Auto cadeira musical",
+                    Description = "Ao aparecer TAKE A SEAT, aciona o Trigger de uma cadeira livre e confirma SeatPart, Occupant e SeatWeld reais.",
                     Default = false,
                 },
                 {
