@@ -1178,9 +1178,6 @@ function Player:Create(options)
                 pentathlonWasActive = false
                 startPentathlonRecovery(3)
             end
-        elseif name == "ReleasePentathlonMovement" then
-            pentathlonWasActive = false
-            startPentathlonRecovery(10)
         elseif name == "ForceMovement" then
             settings.ForceMovement = value == true
             if settings.ForceMovement then

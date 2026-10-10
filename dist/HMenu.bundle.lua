@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.18"
+Config.Version = "v1.2.19"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1441,14 +1441,6 @@ return {
                     Label = "Movimento no Pentatlo",
                     Description = "Ignora DISABLE_MOVEMENT e DISABLE_WALKSPEED enquanto PENTA_ONGOING estiver ativo.",
                     Default = false,
-                },
-                {
-                    Kind = "Button",
-                    Setting = "ReleasePentathlonMovement",
-                    Id = "player_release_pentathlon_movement",
-                    Label = "Destravar movimento",
-                    Description = "Reativa os controles e limpa qualquer bloqueio residual depois do Pentatlo.",
-                    ButtonText = "Destravar",
                 },
                 {
                     Kind = "Toggle",
@@ -3291,9 +3283,6 @@ function Player:Create(options)
                 pentathlonWasActive = false
                 startPentathlonRecovery(3)
             end
-        elseif name == "ReleasePentathlonMovement" then
-            pentathlonWasActive = false
-            startPentathlonRecovery(10)
         elseif name == "ForceMovement" then
             settings.ForceMovement = value == true
             if settings.ForceMovement then

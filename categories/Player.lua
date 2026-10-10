@@ -56,14 +56,6 @@ return {
                     Default = false,
                 },
                 {
-                    Kind = "Button",
-                    Setting = "ReleasePentathlonMovement",
-                    Id = "player_release_pentathlon_movement",
-                    Label = "Destravar movimento",
-                    Description = "Reativa os controles e limpa qualquer bloqueio residual depois do Pentatlo.",
-                    ButtonText = "Destravar",
-                },
-                {
                     Kind = "Toggle",
                     Setting = "ForceMovement",
                     Id = "player_force_movement",
