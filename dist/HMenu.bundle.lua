@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.11"
+Config.Version = "v1.2.12"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1489,7 +1489,7 @@ return {
                     Setting = "AutoCollectBaby",
                     Id = "player_auto_collect_baby",
                     Label = "Auto coletar bebê",
-                    Description = "Quando Workspace.BabyPickup aparecer, tenta PickupPrompt imediatamente. Nunca usa teleporte.",
+                    Description = "Enquanto o bebê estiver no chão, repete o PickupPrompt até confirmar HasBaby. Nunca usa teleporte.",
                     Default = rawget(_G, "__HMENU_AUTO_COLLECT_BABY") == true,
                 },
             },
@@ -2119,7 +2119,7 @@ function Player:Create(options)
         ManualSit = false,
         AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
     }
-    local attemptedBabyModels = setmetatable({}, { __mode = "k" })
+    local babyPickupWorkers = setmetatable({}, { __mode = "k" })
     local babyAttemptGeneration = 0
     local attemptedHoneycombModels = setmetatable({}, { __mode = "k" })
     local honeycombAttemptGeneration = 0
@@ -2151,6 +2151,7 @@ function Player:Create(options)
         if not model or not model.Parent or model.Name ~= "BabyPickup" then return nil end
         local trigger = model:FindFirstChild("Trigger")
         local prompt = trigger and trigger:FindFirstChild("PickupPrompt")
+        if not prompt then prompt = model:FindFirstChild("PickupPrompt", true) end
         if prompt and prompt:IsA("ProximityPrompt") then return prompt end
         return nil
     end
@@ -2159,85 +2160,84 @@ function Player:Create(options)
         if destroyed or not model or not model.Parent then return end
         if not force and not settings.AutoCollectBaby then return end
         if localPlayer:GetAttribute("HasBaby") == true then return end
-        if attemptedBabyModels[model] and not force then return end
+        if babyPickupWorkers[model] then return end
 
-        attemptedBabyModels[model] = true
-        babyAttemptGeneration = babyAttemptGeneration + 1
+        babyPickupWorkers[model] = true
         local generation = babyAttemptGeneration
 
         task.spawn(function()
-            local deadline = os.clock() + 2
-            local prompt = findBabyPrompt(model)
-            while not prompt and model.Parent and os.clock() < deadline do
-                task.wait()
-                if destroyed or generation ~= babyAttemptGeneration then return end
-                if not force and not settings.AutoCollectBaby then return end
-                prompt = findBabyPrompt(model)
+            local function stillValid()
+                return not destroyed
+                    and generation == babyAttemptGeneration
+                    and model.Parent ~= nil
+                    and localPlayer:GetAttribute("HasBaby") ~= true
+                    and (force or settings.AutoCollectBaby)
             end
 
-            if not prompt or type(fireproximityprompt) ~= "function" then return end
+            while stillValid() do
+                local prompt = findBabyPrompt(model)
+                if prompt and prompt.Enabled then
+                    local originalDistance = prompt.MaxActivationDistance
+                    local originalHoldDuration = prompt.HoldDuration
+                    local originalLineOfSight = prompt.RequiresLineOfSight
 
-            local originalDistance = prompt.MaxActivationDistance
-            local originalHoldDuration = prompt.HoldDuration
-            local originalLineOfSight = prompt.RequiresLineOfSight
-            pcall(function()
-                prompt.MaxActivationDistance = 1000
-                prompt.HoldDuration = 0
-                prompt.RequiresLineOfSight = false
-            end)
-            local function finishPromptTest()
-                pcall(function()
-                    prompt.MaxActivationDistance = originalDistance
-                    prompt.HoldDuration = originalHoldDuration
-                    prompt.RequiresLineOfSight = originalLineOfSight
-                end)
-            end
+                    pcall(function()
+                        prompt.MaxActivationDistance = 1000
+                        prompt.RequiresLineOfSight = false
+                    end)
+                    RunService.Heartbeat:Wait()
 
-            -- Give the client one frame to apply the local prompt range before triggering it.
-            RunService.Heartbeat:Wait()
-            if destroyed or generation ~= babyAttemptGeneration or not model.Parent then
-                finishPromptTest()
-                return
-            end
-            if not force and not settings.AutoCollectBaby then
-                finishPromptTest()
-                return
-            end
+                    if stillValid() and prompt.Parent and prompt.Enabled then
+                        if type(fireproximityprompt) == "function" then
+                            pcall(fireproximityprompt, prompt, 0, true)
+                            task.wait(0.12)
+                            if stillValid() then pcall(fireproximityprompt, prompt, 0) end
+                            if stillValid() then pcall(fireproximityprompt, prompt) end
+                        end
 
-            local ok = pcall(fireproximityprompt, prompt, 0, true)
-            if not ok then
-                ok = pcall(fireproximityprompt, prompt, 0)
-            end
-            if ok then
-                task.wait(0.12)
-                if model.Parent and localPlayer:GetAttribute("HasBaby") ~= true then
-                    pcall(fireproximityprompt, prompt, 0)
+                        -- Fallback pelo mesmo ciclo de entrada usado ao segurar E.
+                        if stillValid() then
+                            local holdStarted = pcall(function() prompt:InputHoldBegin() end)
+                            if holdStarted then
+                                task.wait(math.max(tonumber(originalHoldDuration) or 0, 0.05) + 0.05)
+                                pcall(function() prompt:InputHoldEnd() end)
+                            end
+                        end
+                    end
+
+                    pcall(function()
+                        prompt.MaxActivationDistance = originalDistance
+                        prompt.HoldDuration = originalHoldDuration
+                        prompt.RequiresLineOfSight = originalLineOfSight
+                    end)
                 end
-            end
-            if not ok then
-                finishPromptTest()
-                return
+
+                if stillValid() then task.wait(0.45) end
             end
 
-            local confirmationDeadline = os.clock() + 3
-            while not destroyed and os.clock() < confirmationDeadline do
-                if localPlayer:GetAttribute("HasBaby") == true then
-                    finishPromptTest()
-                    return
-                end
-                if not model.Parent then
-                    finishPromptTest()
-                    return
-                end
-                task.wait(0.05)
-            end
-            finishPromptTest()
+            babyPickupWorkers[model] = nil
         end)
     end
 
     local function currentBabyModel()
         local model = Workspace:FindFirstChild("BabyPickup")
         return model and model:IsA("Model") and model or nil
+    end
+
+    local function startBabyMonitor()
+        babyAttemptGeneration = babyAttemptGeneration + 1
+        local generation = babyAttemptGeneration
+        babyPickupWorkers = setmetatable({}, { __mode = "k" })
+
+        task.spawn(function()
+            while not destroyed and settings.AutoCollectBaby and generation == babyAttemptGeneration do
+                if localPlayer:GetAttribute("HasBaby") ~= true then
+                    local model = currentBabyModel()
+                    if model then attemptBabyPickup(model, false) end
+                end
+                task.wait(0.35)
+            end
+        end)
     end
 
     local function executorFunction(name)
@@ -2873,16 +2873,12 @@ function Player:Create(options)
 
     connect(Workspace.ChildRemoved, function(child)
         if child.Name == "BabyPickup" then
-            attemptedBabyModels[child] = nil
+            babyPickupWorkers[child] = nil
         end
     end)
 
     if settings.AutoCollectBaby then
-        task.defer(function()
-            if destroyed or not settings.AutoCollectBaby then return end
-            local model = currentBabyModel()
-            if model then attemptBabyPickup(model, false) end
-        end)
+        startBabyMonitor()
     end
 
     function runtime:Set(name, value)
@@ -2918,10 +2914,11 @@ function Player:Create(options)
         elseif name == "AutoCollectBaby" then
             settings.AutoCollectBaby = value == true
             rawset(_G, AUTO_COLLECT_BABY_KEY, settings.AutoCollectBaby)
-            babyAttemptGeneration = babyAttemptGeneration + 1
             if settings.AutoCollectBaby then
-                local model = currentBabyModel()
-                if model then attemptBabyPickup(model, false) end
+                startBabyMonitor()
+            else
+                babyAttemptGeneration = babyAttemptGeneration + 1
+                babyPickupWorkers = setmetatable({}, { __mode = "k" })
             end
         end
     end

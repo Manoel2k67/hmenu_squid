@@ -1,10 +1,10 @@
-# HMenu Roblox v1.2.11
+# HMenu Roblox v1.2.12
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
 O layout, os componentes e os ícones foram preservados. Os temas selecionáveis agora são `Default`, `White` com Yuno e `Black` com Asta; as paletas claras e escuras mantêm textos, botões e controles legíveis sobre os wallpapers. `Teleport` permite mover o personagem local até outro jogador ou para Incinerador, Elevador do lobby, Sala do Frontman e Instalação/Ilha. `Player` oferece WalkSpeed, Jump Boost, Noclip, Full Bright, Anti Ragdoll, Anti Push, sentar manualmente e Auto Baby. `Combat` oferece expansão de hitbox com alcance configurável e caixa visual sincronizada com as cores do ESP. `Visuals` identifica os vidros da ponte, mostra nomes, vida, auras e tags coloridas de jogadores e marca somente as portas finais do Hide & Seek. As demais categorias permanecem vazias, prontas para receber conteúdo novo.
 
-O **Auto Collect** observa `Workspace.BabyPickup` e tenta `Trigger.PickupPrompt` assim que o bebê é derrubado. O módulo nunca teleporta ou move o personagem. Internamente, amplia localmente `MaxActivationDistance` para `1000`, zera `HoldDuration`, desativa linha de visão, aguarda um frame para aplicar as propriedades e chama `fireproximityprompt` em dois modos compatíveis. Como o funcionamento distante já foi confirmado, a opção opera silenciosamente, sem notificações ou logs. O estado ligado/desligado é preservado entre recarregamentos do menu na mesma sessão do executor.
+O **Auto Collect** monitora `Workspace.BabyPickup` enquanto o bebê permanecer no chão e tenta `Trigger.PickupPrompt` até `HasBaby=true` confirmar a coleta. O módulo nunca teleporta ou move o personagem. Internamente, amplia localmente `MaxActivationDistance` para `1000`, desativa linha de visão, aguarda um frame e tenta assinaturas compatíveis de `fireproximityprompt`; como fallback, reproduz o ciclo normal de segurar e soltar o prompt. Prompts ainda ausentes ou desabilitados continuam sendo observados, em vez de serem descartados depois da primeira falha. A opção opera silenciosamente e seu estado é preservado entre recarregamentos do menu na mesma sessão do executor.
 
 ## Carregamento
 

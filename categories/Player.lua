@@ -102,7 +102,7 @@ return {
                     Setting = "AutoCollectBaby",
                     Id = "player_auto_collect_baby",
                     Label = "Auto coletar bebê",
-                    Description = "Quando Workspace.BabyPickup aparecer, tenta PickupPrompt imediatamente. Nunca usa teleporte.",
+                    Description = "Enquanto o bebê estiver no chão, repete o PickupPrompt até confirmar HasBaby. Nunca usa teleporte.",
                     Default = rawget(_G, "__HMENU_AUTO_COLLECT_BABY") == true,
                 },
             },
