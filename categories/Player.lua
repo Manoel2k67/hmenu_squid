@@ -94,7 +94,7 @@ return {
                     Setting = "ManualSit",
                     Id = "player_manual_sit",
                     Label = "Sentar manualmente",
-                    Description = "Ligado força o personagem a sentar; desligado faz levantar. Controle manual para testes.",
+                    Description = "Ligado senta e mantém a posição atual; desligado faz levantar. Controle manual para testes.",
                     Default = false,
                 },
                 {

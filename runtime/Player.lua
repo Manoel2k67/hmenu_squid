@@ -16,6 +16,7 @@ function Player:Create(options)
     local humanoidOriginals = setmetatable({}, { __mode = "k" })
     local collisionOriginals = setmetatable({}, { __mode = "k" })
     local ragdollAttributeOriginals = setmetatable({}, { __mode = "k" })
+    local manualSitRootOriginals = setmetatable({}, { __mode = "k" })
     local lightingOriginals
     local impactUntil = 0
     local destroyed = false
@@ -687,7 +688,15 @@ function Player:Create(options)
 
     local function applyManualSit()
         local humanoid = currentHumanoid()
-        if not humanoid or humanoid.Health <= 0 then return end
+        local rootPart = currentRootPart()
+        if not humanoid or humanoid.Health <= 0 or not rootPart then return end
+
+        if manualSitRootOriginals[rootPart] == nil then
+            manualSitRootOriginals[rootPart] = {
+                Anchored = rootPart.Anchored,
+            }
+        end
+        rootPart.Anchored = true
 
         if not humanoid.Sit or humanoid:GetState() ~= Enum.HumanoidStateType.Seated then
             humanoid.Sit = true
@@ -697,10 +706,17 @@ function Player:Create(options)
 
     local function standUp()
         local humanoid = currentHumanoid()
-        if not humanoid or humanoid.Health <= 0 then return end
+        if humanoid and humanoid.Health > 0 then
+            humanoid.Sit = false
+            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
 
-        humanoid.Sit = false
-        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+        for rootPart, originals in pairs(manualSitRootOriginals) do
+            if rootPart and rootPart.Parent then
+                rootPart.Anchored = originals.Anchored
+            end
+            manualSitRootOriginals[rootPart] = nil
+        end
     end
 
     local function beginImpactWindow()
