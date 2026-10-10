@@ -45,5 +45,32 @@ return {
                 },
             },
         },
+        {
+            Title = "Áreas",
+            Icon = "navigation",
+            Controls = {
+                {
+                    Kind = "Dropdown",
+                    Setting = "SelectedArea",
+                    Id = "teleport_area_target",
+                    Label = "Selecionar área",
+                    Options = {
+                        "Incinerador",
+                        "Elevador do lobby",
+                        "Sala do Frontman",
+                        "Instalação / Ilha",
+                    },
+                    Default = "Incinerador",
+                },
+                {
+                    Kind = "Button",
+                    Setting = "TeleportToArea",
+                    Id = "teleport_to_area",
+                    Label = "Ir para a área",
+                    Description = "Localiza o ponto atual do mapa antes de mover o personagem.",
+                    ButtonText = "Teleportar",
+                },
+            },
+        },
     },
 }
