@@ -1,4 +1,4 @@
-# HMenu Roblox v1.2.19
+# HMenu Roblox v1.2.20
 
 Base visual modular em Luau pronta para receber as funções de um novo projeto.
 
@@ -6,7 +6,7 @@ O layout, os componentes e os ícones foram preservados. Os temas selecionáveis
 
 O **Auto Collect** monitora `Workspace.BabyPickup` enquanto o bebê permanecer no chão e tenta `Trigger.PickupPrompt` até `HasBaby=true` confirmar a coleta. O módulo nunca teleporta ou move o personagem. Internamente, amplia localmente `MaxActivationDistance` para `1000`, zera `HoldDuration`, desativa linha de visão, aguarda um frame e repete assinaturas compatíveis de `fireproximityprompt`. Ele não usa o ciclo normal de segurar `E`, portanto não depende de apontar a câmera para o bebê. Prompts ainda ausentes ou desabilitados continuam sendo observados, em vez de serem descartados depois da primeira falha. A opção opera silenciosamente e seu estado é preservado entre recarregamentos do menu na mesma sessão do executor.
 
-**Auto Cadeira Musical** espera o aviso real da rodada, identificado pelo surgimento de `Trigger.TouchInterest` dentro das cadeiras. Em seguida escolhe uma cadeira livre, simula o toque do `HumanoidRootPart` no Trigger e só considera a operação concluída quando existem `Humanoid.SeatPart`, `Seat.Occupant` e `SeatWeld` correspondentes. A opção não teleporta o personagem; executores sem `firetouchinterest` só usam `Seat:Sit` quando o personagem já está fisicamente próximo.
+**Auto Cadeira Musical** espera o aviso real da rodada, identificado pelo surgimento de `Trigger.TouchInterest` dentro das cadeiras. Em seguida escolhe uma cadeira livre, simula uma única sequência de toque do `HumanoidRootPart` no Trigger e aguarda até 0,4 segundo pela confirmação de `Humanoid.SeatPart`, `Seat.Occupant` e `SeatWeld`. Se outra pessoa ocupar o alvo, procura outra vaga; cada cadeira recebe um intervalo de 1,5 segundo antes de uma nova tentativa para evitar puxões repetidos. A opção não teleporta o personagem e não fabrica assentos locais, pois eles não seriam aceitos pelo servidor.
 
 **Movimento no Pentatlo** atua quando `PENTA_ONGOING=true` e `PlayingPentathlon=true`. Enquanto ligado, vigia e devolve imediatamente `DISABLE_MOVEMENT` e `DISABLE_WALKSPEED` para `false`, reativa os controles padrão e remove ancoragem local do personagem. Como segunda camada, WASD/setas comandam diretamente o Humanoid e a velocidade horizontal no fim de cada frame, mesmo quando o controlador da fase tenta consumir a entrada. Ao detectar o fim da fase, o módulo limpa os bloqueios e reativa repetidamente o `PlayerModule` durante a transição. Se o script da fase continuar desativando os controles, **Manter movimento destravado** aplica a liberação continuamente até o usuário desligar a opção, sem interferir quando o Humanoid estiver realmente sentado.
 

@@ -51,6 +51,7 @@ function Player:Create(options)
     local musicalChairGeneration = 0
     local musicalChairWarningShown = false
     local musicalChairAttempting = false
+    local musicalChairCooldowns = setmetatable({}, { __mode = "k" })
 
     local runtime = {}
 
@@ -199,9 +200,10 @@ function Player:Create(options)
         local bestSeat
         local bestTrigger
         local bestDistance = math.huge
+        local now = os.clock()
         for _, model in ipairs(chairs:GetChildren()) do
             local seat, trigger = chairParts(model)
-            if seat and seat.Occupant == nil then
+            if seat and seat.Occupant == nil and (musicalChairCooldowns[seat] or 0) <= now then
                 local distance = (trigger.Position - rootPart.Position).Magnitude
                 if distance < bestDistance then
                     bestDistance = distance
@@ -228,6 +230,7 @@ function Player:Create(options)
         if not seat or not trigger then return false end
 
         musicalChairAttempting = true
+        musicalChairCooldowns[seat] = os.clock() + 1.5
         local fireTouch = executorFunction("firetouchinterest")
         if fireTouch then
             pcall(fireTouch, rootPart, trigger, 0)
@@ -242,7 +245,16 @@ function Player:Create(options)
             warn("[HMenu] Auto cadeira precisa de firetouchinterest neste executor.")
         end
 
+        -- Give the server time to create Occupant/SeatWeld. Do not touch a
+        -- second chair while the first request is still being resolved.
+        local confirmationDeadline = os.clock() + 0.4
         local seated = isReallySeated(humanoid, chairs)
+        while not seated and os.clock() < confirmationDeadline
+            and not destroyed and settings.AutoMusicalChairs and seat.Parent do
+            if seat.Occupant ~= nil and seat.Occupant ~= humanoid then break end
+            RunService.Heartbeat:Wait()
+            seated = isReallySeated(humanoid, chairs)
+        end
         musicalChairAttempting = false
         return seated
     end
@@ -251,6 +263,8 @@ function Player:Create(options)
         musicalChairGeneration = musicalChairGeneration + 1
         local generation = musicalChairGeneration
         musicalChairWarningShown = false
+        musicalChairAttempting = false
+        musicalChairCooldowns = setmetatable({}, { __mode = "k" })
         task.spawn(function()
             while not destroyed and settings.AutoMusicalChairs and generation == musicalChairGeneration do
                 attemptMusicalChair()
@@ -1216,6 +1230,7 @@ function Player:Create(options)
             else
                 musicalChairGeneration = musicalChairGeneration + 1
                 musicalChairAttempting = false
+                musicalChairCooldowns = setmetatable({}, { __mode = "k" })
             end
         elseif name == "AutoCollectBaby" then
             settings.AutoCollectBaby = value == true
