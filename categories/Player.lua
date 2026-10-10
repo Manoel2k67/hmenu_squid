@@ -91,6 +91,14 @@ return {
             Controls = {
                 {
                     Kind = "Toggle",
+                    Setting = "ManualSit",
+                    Id = "player_manual_sit",
+                    Label = "Sentar manualmente",
+                    Description = "Ligado força o personagem a sentar; desligado faz levantar. Controle manual para testes.",
+                    Default = false,
+                },
+                {
+                    Kind = "Toggle",
                     Setting = "AutoCollectBaby",
                     Id = "player_auto_collect_baby",
                     Label = "Auto coletar bebê",

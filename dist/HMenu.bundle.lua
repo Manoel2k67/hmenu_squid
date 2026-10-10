@@ -9,7 +9,7 @@ __modules["HMenuConfig.lua"] = function()
 local Config = {}
 
 Config.GuiName = "HMenu"
-Config.Version = "v1.2.9"
+Config.Version = "v1.2.10"
 Config.ToggleKey = Enum.KeyCode.RightShift
 Config.DefaultCategory = "Main"
 Config.Window = { Width = 720, Height = 520, MinScale = 0.68, Margin = 24 }
@@ -1478,6 +1478,14 @@ return {
             Controls = {
                 {
                     Kind = "Toggle",
+                    Setting = "ManualSit",
+                    Id = "player_manual_sit",
+                    Label = "Sentar manualmente",
+                    Description = "Ligado força o personagem a sentar; desligado faz levantar. Controle manual para testes.",
+                    Default = false,
+                },
+                {
+                    Kind = "Toggle",
                     Setting = "AutoCollectBaby",
                     Id = "player_auto_collect_baby",
                     Label = "Auto coletar bebê",
@@ -2107,6 +2115,7 @@ function Player:Create(options)
         FullBright = false,
         AntiRagdoll = false,
         AntiKnockback = false,
+        ManualSit = false,
         AutoCollectBaby = rawget(_G, AUTO_COLLECT_BABY_KEY) == true,
     }
     local attemptedBabyModels = setmetatable({}, { __mode = "k" })
@@ -2765,6 +2774,24 @@ function Player:Create(options)
         rootPart.AssemblyAngularVelocity = Vector3.zero
     end
 
+    local function applyManualSit()
+        local humanoid = currentHumanoid()
+        if not humanoid or humanoid.Health <= 0 then return end
+
+        if not humanoid.Sit or humanoid:GetState() ~= Enum.HumanoidStateType.Seated then
+            humanoid.Sit = true
+            humanoid:ChangeState(Enum.HumanoidStateType.Seated)
+        end
+    end
+
+    local function standUp()
+        local humanoid = currentHumanoid()
+        if not humanoid or humanoid.Health <= 0 then return end
+
+        humanoid.Sit = false
+        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+
     local function beginImpactWindow()
         if not settings.AntiKnockback then return end
         impactUntil = math.max(impactUntil, os.clock() + 0.35)
@@ -2802,6 +2829,7 @@ function Player:Create(options)
         if settings.Noclip then applyNoclip() end
         if settings.FullBright then applyFullBright() end
         if settings.AntiRagdoll then applyAntiRagdoll() end
+        if settings.ManualSit then applyManualSit() end
         if settings.AntiKnockback and os.clock() < impactUntil then
             neutralizeKnockback()
         end
@@ -2815,6 +2843,7 @@ function Player:Create(options)
                 rememberHumanoid(humanoid)
                 applyMovement()
                 if settings.AntiRagdoll then applyAntiRagdoll() end
+                if settings.ManualSit then applyManualSit() end
             end
         end)
     end)
@@ -2867,6 +2896,9 @@ function Player:Create(options)
             if not settings.AntiKnockback then
                 impactUntil = 0
             end
+        elseif name == "ManualSit" then
+            settings.ManualSit = value == true
+            if settings.ManualSit then applyManualSit() else standUp() end
         elseif name == "AutoCollectBaby" then
             settings.AutoCollectBaby = value == true
             rawset(_G, AUTO_COLLECT_BABY_KEY, settings.AutoCollectBaby)
@@ -2891,6 +2923,7 @@ function Player:Create(options)
         restoreCollision()
         restoreLighting()
         restoreAntiRagdoll()
+        if settings.ManualSit then standUp() end
 
         for humanoid, originals in pairs(humanoidOriginals) do
             if humanoid and humanoid.Parent then
